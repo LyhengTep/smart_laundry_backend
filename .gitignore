@@ -1,0 +1,88 @@
+# ================================
+# Python
+# ================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# ================================
+# FastAPI / Uvicorn
+# ================================
+*.log
+logs/
+uvicorn.log
+
+# ================================
+# Environment variables
+# ================================
+.env
+.env.*
+!.env.example
+
+# ================================
+# Poetry / Pipenv
+# ================================
+poetry.lock
+Pipfile.lock
+
+# ================================
+# Pytest / Coverage
+# ================================
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ================================
+# MyPy / Ruff / Linters
+# ================================
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+
+# ================================
+# VS Code
+# ================================
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ================================
+# PyCharm
+# ================================
+.idea/
+
+# ================================
+# OS Files
+# ================================
+.DS_Store
+Thumbs.db
+
+# ================================
+# Docker
+# ================================
+.dockerignore
+docker-compose.override.yml
+
+# ================================
+# Database / Local state
+# ================================
+*.sqlite3
+*.db
+
+# ================================
+# Alembic
+#
