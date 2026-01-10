@@ -1,0 +1,28 @@
+
+
+from datetime import datetime
+import email
+from uuid import UUID
+from sqlmodel import SQLModel
+
+from app.modules.users.models import UserStatus
+
+
+class UserRead(SQLModel):
+    id: UUID
+    full_name: str
+    user_name: str
+    email: str
+    phone: str | None
+    status: UserStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+
+class UserWrite(SQLModel):
+    full_name: str
+    user_name: str
+    password: str
+    email: str
+    phone: str | None

@@ -4,6 +4,11 @@ VENV=./venv
 PYTHON=$(VENV)/bin/python
 PIP=$(VENV)/bin/pip
 FAST=$(VENV)/bin/fastapi
+
+PYTEST=$(VENV)/bin/pytest
+
+PYTHONPATH=.
+
 .PHONY: up down restart logs ps clean
 
 up:
@@ -27,3 +32,7 @@ clean:
 
 run: 
 	$(FAST) dev app/main.py
+
+test: 
+	$(PYTEST) 
+
