@@ -1,8 +1,3 @@
-
-
-
-
-
 from sqlmodel import select
 from app.exceptions.http import  create_404, create_500
 from app.modules.auth.schema import LoginRequest,LoginResponse
