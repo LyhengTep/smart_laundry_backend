@@ -1,0 +1,16 @@
+from fastapi import HTTPException, status
+
+
+
+def create_400(msg:str)->HTTPException:
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=msg)
+
+
+
+
+def create_404(msg:str)->HTTPException:
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=msg)
+
+
+def create_500(msg:str)->HTTPException:
+    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail=msg)

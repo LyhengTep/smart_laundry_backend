@@ -13,6 +13,11 @@ class UserStatus(str, Enum):
     INACTIVE = "INACTIVE"
     SUSPENDED = "SUSPENDED"
 
+class RoleName(str, Enum):
+    ADMIN = "ADMIN"
+    MERCHANT = "MERCHANT"
+    DRIVER = "DRIVER"
+
 class User(SQLModel, table=True):
     __tablename__="users"
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
@@ -23,6 +28,8 @@ class User(SQLModel, table=True):
     phone: str | None = Field(default=None, sa_column=Column(String(30), unique=True, nullable=True))
 
     password_hash: str = Field(sa_column=Column(Text, nullable=False))
+
+    role: str = Field(sa_column=Column(SAEnum(RoleName,name="role_name"),nullable=False))
 
     status: UserStatus = Field(
         default=UserStatus.ACTIVE,

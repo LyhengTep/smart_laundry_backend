@@ -5,7 +5,7 @@ import email
 from uuid import UUID
 from sqlmodel import SQLModel
 
-from app.modules.users.models import UserStatus
+from app.modules.users.models import RoleName, UserStatus
 
 
 class UserRead(SQLModel):
@@ -26,3 +26,4 @@ class UserWrite(SQLModel):
     password: str
     email: str
     phone: str | None
+    role: RoleName
