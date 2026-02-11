@@ -4,7 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.modules.users.models import User
 from app.modules.users.schema import UserRead, UserWrite
 from app.shared.passwords import hash_password
-
+import logging
 
 async def list_users(session: AsyncSession) -> list[UserRead]:
     result = await session.exec(select(User))
@@ -13,6 +13,7 @@ async def list_users(session: AsyncSession) -> list[UserRead]:
 
 async def create_user(data:UserWrite,session: AsyncSession,) -> UserRead:
     try:
+        logging.info("Calling create user %s",data.model_dump())
         user= User(**data.model_dump(exclude={"password"}))
         user.password_hash=hash_password(data.password)
         print(user.password_hash)
@@ -23,7 +24,9 @@ async def create_user(data:UserWrite,session: AsyncSession,) -> UserRead:
         print(user)
         return user
     except Exception as e:
+        logging.exception("Failed to create user and need to rollback")
         await session.rollback()
+        raise e
     
 
 async def delete_user(user_id:str, session: AsyncSession) -> bool:
@@ -36,5 +39,4 @@ async def delete_user(user_id:str, session: AsyncSession) -> bool:
         await session.commit()
         return True
     except Exception as e:    
-    
         return False

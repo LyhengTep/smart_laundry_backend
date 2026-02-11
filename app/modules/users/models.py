@@ -1,9 +1,11 @@
-from sqlmodel import Field,SQLModel
+from sqlmodel import Field, Relationship,SQLModel
 from sqlalchemy import Column, DateTime, Enum as SAEnum, String, Text
 from uuid import UUID, uuid4
 from enum import Enum
 
 from datetime import datetime, timezone
+
+from app.modules.drivers.models import Driver
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -17,6 +19,7 @@ class RoleName(str, Enum):
     ADMIN = "ADMIN"
     MERCHANT = "MERCHANT"
     DRIVER = "DRIVER"
+    CUSTOMER = "CUSTOMER"
 
 class User(SQLModel, table=True):
     __tablename__="users"
@@ -24,7 +27,7 @@ class User(SQLModel, table=True):
 
     full_name: str = Field(sa_column=Column(String(120), nullable=False))
     user_name: str = Field(sa_column=Column(String(60), nullable=False, unique=True, index=True))
-    email: str = Field(sa_column=Column(String(255), nullable=False, unique=True, index=True))
+    email: str = Field(sa_column=Column(String(255), nullable=False))
     phone: str | None = Field(default=None, sa_column=Column(String(30), unique=True, nullable=True))
 
     password_hash: str = Field(sa_column=Column(Text, nullable=False))
@@ -35,7 +38,7 @@ class User(SQLModel, table=True):
         default=UserStatus.ACTIVE,
         sa_column=Column(SAEnum(UserStatus, name="user_status"), nullable=False, index=True),
     )
-
+    driver: Driver | None = Relationship(back_populates="user")
     created_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
