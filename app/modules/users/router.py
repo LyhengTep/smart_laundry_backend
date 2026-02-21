@@ -12,6 +12,14 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def list_users(session: AsyncSession = Depends(get_session))->list[UserRead]:
     return await svc.list_users(session)
 
+
+
+@router.get("/{user_id}")
+async def list_one_user(user_id: UUID,session: AsyncSession = Depends(get_session))->UserRead:
+    return await svc.list_one_user(user_id,session)
+
+
+
 @router.post("/")
 async def create_users(data:UserWrite,session: AsyncSession = Depends(get_session))-> UserRead:
     return await svc.create_user(data=data,session=session)

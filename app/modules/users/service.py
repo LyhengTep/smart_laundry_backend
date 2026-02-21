@@ -1,6 +1,8 @@
 from __future__ import annotations
+from uuid import UUID
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from app.exceptions.http import create_404
 from app.modules.users.models import User
 from app.modules.users.schema import UserRead, UserWrite
 from app.shared.passwords import hash_password
@@ -11,6 +13,14 @@ async def list_users(session: AsyncSession) -> list[UserRead]:
     return result.all()
 
 
+
+async def list_one_user(user_id: UUID,session: AsyncSession) -> UserRead:
+    result = await session.get(User, user_id)
+    print(f"=======================>result is {result}")
+
+    if result is None: 
+        raise create_404("User not found")
+    return result
 async def create_user(data:UserWrite,session: AsyncSession,) -> UserRead:
     try:
         logging.info("Calling create user %s",data.model_dump())

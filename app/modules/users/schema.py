@@ -15,15 +15,18 @@ class UserRead(SQLModel):
     email: str
     phone: str | None
     status: UserStatus
+    role: RoleName
     created_at: datetime
     updated_at: datetime
+
+    
 
 
 
 class UserWrite(SQLModel):
     full_name: str
     user_name: str
-    password: str
+    status: UserStatus
     email: str
     phone: str | None
     role: RoleName

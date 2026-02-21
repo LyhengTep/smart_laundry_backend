@@ -14,6 +14,7 @@ class UserStatus(str, Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     SUSPENDED = "SUSPENDED"
+    REJECTED = "REJECTED"
 
 class RoleName(str, Enum):
     ADMIN = "ADMIN"
