@@ -86,3 +86,6 @@ docker-compose.override.yml
 # ================================
 # Alembic
 #
+
+#Upload files
+app/uploads

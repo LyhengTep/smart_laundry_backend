@@ -1,3 +1,5 @@
+
+
 from sqlmodel import select
 from app.exceptions.http import  create_400, create_404, create_500
 from app.exceptions.user import UserExistingError
@@ -11,7 +13,6 @@ from app.shared.passwords import create_access_token, hash_password
 
 
 async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
-    
     try:
       user: User
       statement= select(User).where(User.user_name==data.login,User.role==data.role)

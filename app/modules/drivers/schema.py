@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlmodel import SQLModel
 
 from app.modules.users.models import RoleName, UserStatus
-from app.modules.users.schema import UserRead, UserWrite
+from app.modules.users.schema import UserEdit, UserRead, UserWrite
 
 
 class DriverRead(SQLModel):
@@ -26,7 +26,7 @@ class DriverWrite(SQLModel):
     vehicle_type: str
     license_number: str | None
     vehicle_color: str
-    user: UserWrite
+    user: UserEdit
 
 # class UserWrite(SQLModel):
 #     full_name: str

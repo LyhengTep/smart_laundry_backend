@@ -19,14 +19,16 @@ class UserRead(SQLModel):
     created_at: datetime
     updated_at: datetime
 
-    
-
 
 
 class UserWrite(SQLModel):
     full_name: str
     user_name: str
-    status: UserStatus
+    password: str
     email: str
     phone: str | None
     role: RoleName
+
+
+class UserEdit(UserWrite):
+    status: UserStatus

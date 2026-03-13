@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from sqlmodel import Field, Relationship,SQLModel
 from sqlalchemy import Column, DateTime, Enum as SAEnum, String, Text
 from uuid import UUID, uuid4
@@ -5,11 +7,14 @@ from enum import Enum
 
 from datetime import datetime, timezone
 
+# from app.modules.businesses.models import LaundryBusiness
 from app.modules.drivers.models import Driver
+from app.shared.common import utc_now
 
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
 
+if TYPE_CHECKING:
+    from app.modules.businesses.models import LaundryBusiness
+    # from app.modules.drivers.models import Driver
 class UserStatus(str, Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
@@ -40,6 +45,8 @@ class User(SQLModel, table=True):
         sa_column=Column(SAEnum(UserStatus, name="user_status"), nullable=False, index=True),
     )
     driver: Driver | None = Relationship(back_populates="user")
+    businesses: list["LaundryBusiness"] = Relationship(back_populates="owner")
+    
     created_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
