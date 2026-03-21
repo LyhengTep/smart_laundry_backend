@@ -89,3 +89,4 @@ docker-compose.override.yml
 
 #Upload files
 app/uploads
+AGENTS*

@@ -1,0 +1,1108 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict lFWN7tdvWJw4uuXk5D7KyGVNsoxiHYj2qKBfXpbEBUprID7eO4EQH9fEdxX4Hkb
+
+-- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
+-- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: order_item_price_type; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.order_item_price_type AS ENUM (
+    'PER_ITEM',
+    'PER_WEIGHT',
+    'FIXED'
+);
+
+
+ALTER TYPE public.order_item_price_type OWNER TO smart_laundry;
+
+--
+-- Name: order_status; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.order_status AS ENUM (
+    'PENDING',
+    'ACCEPTED',
+    'PICKED_UP',
+    'DELIVERED_TO_SHOP',
+    'WASHING',
+    'READY_FOR_DELIVERY',
+    'OUT_FOR_DELIVERY',
+    'COMPLETED',
+    'CANCELLED'
+);
+
+
+ALTER TYPE public.order_status OWNER TO smart_laundry;
+
+--
+-- Name: pickup_method; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.pickup_method AS ENUM (
+    'PICKUP',
+    'DROP_OFF'
+);
+
+
+ALTER TYPE public.pickup_method OWNER TO smart_laundry;
+
+--
+-- Name: pricetype; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.pricetype AS ENUM (
+    'PER_ITEM',
+    'PER_WEIGHT',
+    'FIXED'
+);
+
+
+ALTER TYPE public.pricetype OWNER TO smart_laundry;
+
+--
+-- Name: role_name; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.role_name AS ENUM (
+    'ADMIN',
+    'MERCHANT',
+    'DRIVER',
+    'CUSTOMER'
+);
+
+
+ALTER TYPE public.role_name OWNER TO smart_laundry;
+
+--
+-- Name: service_enum; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.service_enum AS ENUM (
+    'WASH',
+    'DRY_CLEAN',
+    'IRON'
+);
+
+
+ALTER TYPE public.service_enum OWNER TO smart_laundry;
+
+--
+-- Name: shopstatus; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.shopstatus AS ENUM (
+    'PENDING',
+    'APPROVED',
+    'OPEN',
+    'CLOSED',
+    'SUSPENDED',
+    'PENDING_DEACTIVATION',
+    'DEACTIVATED'
+);
+
+
+ALTER TYPE public.shopstatus OWNER TO smart_laundry;
+
+--
+-- Name: user_status; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.user_status AS ENUM (
+    'ACTIVE',
+    'INACTIVE',
+    'SUSPENDED',
+    'REJECTED'
+);
+
+
+ALTER TYPE public.user_status OWNER TO smart_laundry;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: alembic_version; Type: TABLE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TABLE public.alembic_version (
+    version_num character varying(32) NOT NULL
+);
+
+
+ALTER TABLE public.alembic_version OWNER TO smart_laundry;
+
+--
+-- Name: business_services; Type: TABLE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TABLE public.business_services (
+    id uuid NOT NULL,
+    business_id uuid NOT NULL,
+    service_id integer NOT NULL,
+    base_price double precision NOT NULL,
+    is_active boolean NOT NULL,
+    pricing_type public.pricetype NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.business_services OWNER TO smart_laundry;
+
+--
+-- Name: drivers; Type: TABLE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TABLE public.drivers (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    plate_number character varying(32) NOT NULL,
+    id_card_number character varying(64) NOT NULL,
+    vehicle_type character varying(64) NOT NULL,
+    license_number character varying(64),
+    vehicle_color character varying(32)
+);
+
+
+ALTER TABLE public.drivers OWNER TO smart_laundry;
+
+--
+-- Name: laundry_businesses; Type: TABLE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TABLE public.laundry_businesses (
+    id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    name character varying NOT NULL,
+    address character varying NOT NULL,
+    phone character varying,
+    latitude double precision,
+    longitude double precision,
+    profile_image_url character varying,
+    cover_image_url character varying,
+    business_license_number character varying(255) NOT NULL,
+    rating_avg double precision NOT NULL,
+    open_time time without time zone NOT NULL,
+    close_time time without time zone NOT NULL,
+    status public.shopstatus NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.laundry_businesses OWNER TO smart_laundry;
+
+--
+-- Name: laundry_services; Type: TABLE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TABLE public.laundry_services (
+    id integer NOT NULL,
+    name public.service_enum NOT NULL,
+    code character varying(50) NOT NULL,
+    description character varying(100) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.laundry_services OWNER TO smart_laundry;
+
+--
+-- Name: laundry_services_id_seq; Type: SEQUENCE; Schema: public; Owner: smart_laundry
+--
+
+CREATE SEQUENCE public.laundry_services_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.laundry_services_id_seq OWNER TO smart_laundry;
+
+--
+-- Name: laundry_services_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: smart_laundry
+--
+
+ALTER SEQUENCE public.laundry_services_id_seq OWNED BY public.laundry_services.id;
+
+
+--
+-- Name: order_items; Type: TABLE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TABLE public.order_items (
+    id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    business_service_id uuid NOT NULL,
+    service_id integer NOT NULL,
+    service_name character varying(100) NOT NULL,
+    pricing_type public.order_item_price_type NOT NULL,
+    measure_type character varying(30) NOT NULL,
+    unit_price double precision NOT NULL,
+    quantity double precision NOT NULL,
+    sub_total double precision NOT NULL,
+    note text
+);
+
+
+ALTER TABLE public.order_items OWNER TO smart_laundry;
+
+--
+-- Name: orders; Type: TABLE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TABLE public.orders (
+    id uuid NOT NULL,
+    order_no character varying(32) NOT NULL,
+    customer_id uuid NOT NULL,
+    business_id uuid NOT NULL,
+    driver_id uuid,
+    status public.order_status NOT NULL,
+    pickup_method public.pickup_method NOT NULL,
+    placed_at timestamp with time zone NOT NULL,
+    scheduled_pickup_at timestamp with time zone,
+    scheduled_dropoff_at timestamp with time zone,
+    pickup_address character varying(255) NOT NULL,
+    delivery_address character varying(255) NOT NULL,
+    notes text,
+    subtotal double precision NOT NULL,
+    discount double precision NOT NULL,
+    total double precision NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    pickup_latitude double precision NOT NULL,
+    pickup_longitude double precision NOT NULL,
+    delivery_latitude double precision NOT NULL,
+    delivery_longitude double precision NOT NULL
+);
+
+
+ALTER TABLE public.orders OWNER TO smart_laundry;
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TABLE public.users (
+    id uuid NOT NULL,
+    full_name character varying(120) NOT NULL,
+    user_name character varying(60) NOT NULL,
+    email character varying(255) NOT NULL,
+    phone character varying(30),
+    password_hash text NOT NULL,
+    role public.role_name NOT NULL,
+    status public.user_status NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.users OWNER TO smart_laundry;
+
+--
+-- Name: laundry_services id; Type: DEFAULT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.laundry_services ALTER COLUMN id SET DEFAULT nextval('public.laundry_services_id_seq'::regclass);
+
+
+--
+-- Data for Name: alembic_version; Type: TABLE DATA; Schema: public; Owner: smart_laundry
+--
+
+COPY public.alembic_version (version_num) FROM stdin;
+a1f4e276f031
+\.
+
+
+--
+-- Data for Name: business_services; Type: TABLE DATA; Schema: public; Owner: smart_laundry
+--
+
+COPY public.business_services (id, business_id, service_id, base_price, is_active, pricing_type, created_at, updated_at) FROM stdin;
+70b4c4be-3a09-4a6c-b7b3-ca106dcd85bf	853f1e22-5b82-4717-aefa-17d45285ddad	2	2	t	PER_ITEM	2026-03-08 11:21:49.999653+00	2026-03-08 11:21:49.999665+00
+9aef9237-e569-494c-8931-52b7e412935c	3f619b1f-7921-4e95-a227-e39946fe90a1	1	1	t	PER_WEIGHT	2026-03-08 11:38:52.110955+00	2026-03-08 11:38:52.110964+00
+4da179b1-f570-4c2e-8821-7dfde315ed0a	3f619b1f-7921-4e95-a227-e39946fe90a1	2	2	t	PER_WEIGHT	2026-03-08 12:19:40.676752+00	2026-03-08 12:19:40.676812+00
+9ba02191-e960-4ea2-b464-d5f086fa8e19	853f1e22-5b82-4717-aefa-17d45285ddad	3	1	t	PER_WEIGHT	2026-03-12 15:51:30.275334+00	2026-03-12 15:51:30.275355+00
+\.
+
+
+--
+-- Data for Name: drivers; Type: TABLE DATA; Schema: public; Owner: smart_laundry
+--
+
+COPY public.drivers (id, user_id, plate_number, id_card_number, vehicle_type, license_number, vehicle_color) FROM stdin;
+8cc67c99-81df-4a9e-8bd7-ceae4f07867a	3f3e1015-f82b-4265-a1b7-5d99be201560	PLT-0001	100001	TUK_TUK	LIC-00001	Blau
+3fa9d98d-be99-4644-afd1-86996304cbfb	d5a4674d-0ab8-4f5b-ad7b-066a88c7a501	PLT-0002	100002	E_BIKE	LIC-00002	Schwarz
+d1877cbb-0a36-431d-852b-25e3ba4a9b04	f2ffd2a8-1561-4ae6-b781-62f6e5f143de	PLT-0003	100003	MOTORCYCLE	LIC-00003	Weiß
+e7f560ed-6b83-4bb1-8588-edfe1f2bead5	2fe00241-7fff-4c19-9ba7-071daa293930	PLT-0004	100004	TUK_TUK	LIC-00004	Rot
+63d8bac9-508e-4ce2-8fa7-76de8a1edaa6	4647bd5d-9f8b-4526-b2c6-0097a996543e	PLT-0005	100005	E_BIKE	\N	Blau
+c0ebd2ac-d856-4535-9cd5-2f4a4f3e475c	7ca56228-bff0-48b4-a1d1-9becf7a571c1	PLT-0006	100006	MOTORCYCLE	LIC-00006	Schwarz
+60685f45-dcd9-4c0e-a591-7815ef9e3b39	986e8d6c-128c-483e-ac05-589410f3a92f	PLT-0007	100007	TUK_TUK	LIC-00007	Weiß
+e1a87d12-9c7d-4804-bd42-1bcc0042fd61	6d8722b4-af72-4c9f-980f-1b40c86405ea	PLT-0008	100008	E_BIKE	LIC-00008	Rot
+d524fe11-126c-4c8e-9cf5-87677fb195fe	e1d188a2-3423-443f-8c9e-cc87a4261a47	PLT-0009	100009	MOTORCYCLE	LIC-00009	Blau
+72e058f4-8b40-4ffd-aaf7-586d40ccabf0	1704de73-7ad8-40dc-b48c-62e6812a2faa	PLT-0010	100010	TUK_TUK	\N	Schwarz
+355b60b9-b62b-4d77-aa64-0e33addad94c	85ad7be3-89fb-4118-876d-383b4a7a8b3f	PLT-0011	100011	E_BIKE	LIC-00011	Weiß
+2c170bc2-4c00-4d16-a5d0-ddd55c74ab48	16952427-fce1-407d-9382-71363e198f3b	PLT-0012	100012	MOTORCYCLE	LIC-00012	Rot
+9c83f618-11e8-479a-a422-7030a00dbc31	4c05d007-8220-440b-9a62-fd5051c90392	PLT-0013	100013	TUK_TUK	LIC-00013	Blau
+d0dc34ba-3690-41e0-ac0d-e80c9f21e83e	da974da8-000a-4411-9408-b2d876d7d7fb	PLT-0014	100014	E_BIKE	LIC-00014	Schwarz
+697c28ab-9017-4c06-91ec-dc04ef0c5c80	0a186de3-dae5-475f-81f8-ef6fa66ae0e4	PLT-0015	100015	MOTORCYCLE	\N	Weiß
+d5edac48-0203-4a9f-ad57-cb9094ffca9b	cdc8a533-26c2-4897-9581-75975d7e7a3a	PLT-0016	100016	TUK_TUK	LIC-00016	Rot
+103dd087-ff1c-4dc4-aac0-9e074c0840a5	48be4f7c-1877-4dba-9d4e-70614bae9722	PLT-0017	100017	E_BIKE	LIC-00017	Blau
+9a09736e-75bf-4f44-8174-98e684e649b4	aed0e89a-bc13-4166-a4ff-ed7d300d55e0	PLT-0018	100018	MOTORCYCLE	LIC-00018	Schwarz
+5021320e-7c94-4f95-afa5-8e020b0dc472	f525082a-6a9b-441d-93f4-d18a3b254ba9	PLT-0019	100019	TUK_TUK	LIC-00019	Weiß
+dc7b7d84-7326-4060-a615-a27776adf250	218b8e59-3ce7-47a6-98e8-c4d123864e5d	PLT-0020	100020	E_BIKE	\N	Rot
+736bfd09-b0d3-46a0-a701-4d7e53285675	83a255d6-97b4-4bfd-96d5-17d0c8dce272	PLT-0021	100021	MOTORCYCLE	LIC-00021	Blau
+7798d2ca-a30f-4acb-8c7f-b15ab7616192	f3642fe2-41e6-4c70-a645-579ec48d13a4	PLT-0022	100022	TUK_TUK	LIC-00022	Schwarz
+1d1ac1a1-b39d-491c-a016-e3557f8f4d6b	36502945-a6bb-428b-a7c8-1d5a2fad595e	PLT-0023	100023	E_BIKE	LIC-00023	Weiß
+c154a108-9ca6-4dbf-afca-9e0e8fd46bdb	4ccadf4a-0e04-4532-a68d-14d8749eb345	PLT-0024	100024	MOTORCYCLE	LIC-00024	Rot
+2a5c38fc-c86d-4254-b849-f07eb5a5ed30	076ad0c9-fe8f-4c4b-a6e7-bc91a4a0df36	PLT-0025	100025	TUK_TUK	\N	Blau
+5dc1d4e1-c35f-4a31-a7b2-f207ef18c6a3	82b5c9cb-918f-455e-89e5-6529826adbf9	PLT-0026	100026	E_BIKE	LIC-00026	Schwarz
+e8a3c34a-77bf-404b-861d-9fa6c699e30d	f6dd24b9-46fb-41bb-a98a-3bebcd62cfff	PLT-0027	100027	MOTORCYCLE	LIC-00027	Weiß
+fcd3136f-762b-4f5f-99bc-f2e699ca77c3	4784bb62-9d7a-45e2-b298-353a662c2dc5	PLT-0028	100028	TUK_TUK	LIC-00028	Rot
+9b2f1acb-7947-449e-8bc3-2f71e3f39c7f	bd9d498e-dab0-4f5b-8751-f4bc09cd0592	PLT-0029	100029	E_BIKE	LIC-00029	Blau
+0973cb82-c04b-4b71-ba73-8c9f0c83f949	3ff63fbb-1e8e-495b-a4a8-e84b34147401	PLT-0030	100030	MOTORCYCLE	\N	Schwarz
+e98ceb4f-95ab-49d1-9cfa-01f3098b5b84	f37c6597-0f49-4f44-b766-bb0811ab6d41	PLT-0031	100031	TUK_TUK	LIC-00031	Weiß
+75845b08-6897-4d5d-a3a2-122e538ee4e0	55420e62-108c-46f5-8b65-23c07853eb93	PLT-0032	100032	E_BIKE	LIC-00032	Rot
+821ea11d-7b8e-4c02-972d-5d4b5be3d392	5747db19-dda8-4712-b18f-c294d4422d92	PLT-0033	100033	MOTORCYCLE	LIC-00033	Blau
+2181756c-653c-4dca-ae81-482aec1f59f9	05a4bacb-94cf-4901-8d8a-1d121ca27e8c	PLT-0034	100034	TUK_TUK	LIC-00034	Schwarz
+0e450401-78d1-47b3-a83c-6865f4d20e39	49b2d45e-e868-45a5-901e-938859bec525	PLT-0035	100035	E_BIKE	\N	Weiß
+1d30146b-f469-4e13-91ba-833a438fa552	176cf081-ace2-4b66-8d5b-799852837039	PLT-0036	100036	MOTORCYCLE	LIC-00036	Rot
+0ea2f61a-a08b-49bc-a33a-f4abd8bbe468	9d779b0b-f2c6-4183-9f0e-c71439335286	PLT-0037	100037	TUK_TUK	LIC-00037	Blau
+5265d013-f778-4e5d-b0c3-456350e73f2e	3dd998c3-52ea-412f-88b4-76f982bd1523	PLT-0038	100038	E_BIKE	LIC-00038	Schwarz
+fe446bd0-e0f6-422f-946c-78f832914441	301cd839-0194-48cd-b99d-f3fc301c0e47	PLT-0039	100039	MOTORCYCLE	LIC-00039	Weiß
+10797d0e-90df-4d29-8700-bd4bec28880a	7efa6fd7-bcb3-4380-9e1f-e1b9e97e56e2	PLT-0040	100040	TUK_TUK	\N	Rot
+e885ed83-da73-4279-b934-6eaa08430457	6768d9e3-8e42-44d5-9e0b-5718844118cd	PLT-0041	100041	E_BIKE	LIC-00041	Blau
+f2953a88-5c58-45f5-8e90-8c828ec7d3b9	80780508-29b5-40a2-96c6-4dbcb5352a31	PLT-0042	100042	MOTORCYCLE	LIC-00042	Schwarz
+d7c041b3-a9e0-483e-9835-af628e3fddbc	07824cb8-936a-4eab-afaa-acb307d79026	PLT-0043	100043	TUK_TUK	LIC-00043	Weiß
+e89ce925-7d9c-4e13-b510-76ec1a308978	f76e7b14-dd46-40fc-9de5-baf73f2289c6	PLT-0044	100044	E_BIKE	LIC-00044	Rot
+29600cbc-b567-471d-ac03-43925605cb46	82c3043a-65ea-4328-b926-8ccdfb816e2f	PLT-0045	100045	MOTORCYCLE	\N	Blau
+d7cd1ef7-254c-4db5-8125-80da55cf4545	57579d27-84ef-445c-a9e5-c9cadfa7ab91	PLT-0046	100046	TUK_TUK	LIC-00046	Schwarz
+16d504de-6414-47b0-b168-14603ad36e4e	3d1837e9-ddea-4aca-8ca5-2f9a84dd9c5b	PLT-0047	100047	E_BIKE	LIC-00047	Weiß
+f38506bf-dde2-49da-b8bd-2d13054933f6	9247cb00-aac5-4c20-ac8a-05211cd9e6b7	PLT-0048	100048	MOTORCYCLE	LIC-00048	Rot
+5327162f-e9fe-4ebe-a270-b4cf8c0a7a5b	b1799f30-6877-4e77-8c40-0dd6148d44b8	PLT-0049	100049	TUK_TUK	LIC-00049	Blau
+763005fa-fc00-48b2-8fd4-51c5b6f7f7c7	534c2cb9-db05-456b-8218-f3e5378ce689	PLT-0050	100050	E_BIKE	\N	Schwarz
+b7b08d75-823c-4527-9a29-7e2b8dcd31a6	040b73bd-aab9-41c3-a9db-a9529c4a1198	PLT-0051	100051	MOTORCYCLE	LIC-00051	Weiß
+13778d38-9694-408a-a657-f15dbf997315	177d4930-7303-4937-b767-d43b14e619f2	PLT-0052	100052	TUK_TUK	LIC-00052	Rot
+a47e6cae-6004-4709-9136-1b52f38121b9	a0f1366e-1969-428b-9fac-354ca910eec9	PLT-0053	100053	E_BIKE	LIC-00053	Blau
+fb2fae55-4efe-4541-9f59-27bee073cd10	ba3a6106-be70-44aa-97c4-973327a8af3e	PLT-0054	100054	MOTORCYCLE	LIC-00054	Schwarz
+06407449-3c38-463c-9f1c-d293d53d7746	a5258aa4-8272-4cf8-8c27-945b7c057eb5	PLT-0055	100055	TUK_TUK	\N	Weiß
+4ccf5f5e-79f0-44f7-9a14-4e89a78640a1	508f9505-e790-40b8-9461-471144b4bafa	PLT-0056	100056	E_BIKE	LIC-00056	Rot
+830eb055-6474-40f8-891c-ae967baa7183	9549170e-417e-4cc5-88d3-ec24eeed5524	PLT-0057	100057	MOTORCYCLE	LIC-00057	Blau
+84477da2-cf2d-472d-8b44-24c171530770	63a11b20-692d-400c-b39d-9a3296ca0f36	PLT-0058	100058	TUK_TUK	LIC-00058	Schwarz
+f7c09e45-e5b5-4729-add4-ae5828c93486	638a240f-754e-4708-9839-5cd375022bc7	PLT-0059	100059	E_BIKE	LIC-00059	Weiß
+da6c13fb-1a99-4e8d-8307-c45bb3b17d98	4edfe3aa-c34f-4941-b2ef-1e7c84aee8d7	PLT-0060	100060	MOTORCYCLE	\N	Rot
+74152715-dae8-46dc-b3a0-079a074fd5f2	99f5d97a-869c-4781-ab0a-3de21aa3a060	PLT-0061	100061	TUK_TUK	LIC-00061	Blau
+2a129d15-f914-4415-bdb1-24bf2d4c4d5a	a158dd19-bf3c-41ea-b644-66323e480c16	PLT-0062	100062	E_BIKE	LIC-00062	Schwarz
+e6316d77-bd95-4bb5-a975-2a5fd6885a2e	6ace210e-56c6-4258-8812-5fe79d29b3bd	PLT-0063	100063	MOTORCYCLE	LIC-00063	Weiß
+03d7c0b7-3b86-45d7-81ef-f4730a7fd66c	ff6cedaf-b6ec-4b64-bcc9-7dce6bebeb93	PLT-0064	100064	TUK_TUK	LIC-00064	Rot
+862de9c5-4bce-4876-82b4-12d15737e948	ddcf6df0-08ba-4f64-8b1c-d0d48b772856	PLT-0065	100065	E_BIKE	\N	Blau
+3822a0a6-c2d4-4457-a27a-5f5c6dfa90bd	ab35d0cf-704e-4b3d-96ab-2371d798c3cf	PLT-0066	100066	MOTORCYCLE	LIC-00066	Schwarz
+a0dcee6e-aa69-421e-a93e-24e7a89b5d66	5da6cf92-10a8-4128-a661-e180ca46f7b0	PLT-0067	100067	TUK_TUK	LIC-00067	Weiß
+9733143b-1c53-4617-898c-4414fddb87df	79368667-8e2a-46df-b1ff-aa182c671986	PLT-0068	100068	E_BIKE	LIC-00068	Rot
+8bb1517e-9d1f-4d4a-9628-45bb0a719175	8eb54cf5-1d0a-4a5b-b19c-f6d3b5c900f3	PLT-0069	100069	MOTORCYCLE	LIC-00069	Blau
+6f2ae62b-655b-4666-8ddd-9e53a11b7589	ca5738c4-700f-46d9-8964-09b8a6ca77db	PLT-0070	100070	TUK_TUK	\N	Schwarz
+9238b8cf-538e-4ecb-a640-8a657a9e6775	0b328d24-2549-4c2e-8202-2fa0cd9d2b75	PLT-0071	100071	E_BIKE	LIC-00071	Weiß
+786bc53f-7f7a-4c0f-ac96-0f0a1549e6ff	ef653442-f34c-47f4-a180-0182919dcf0f	PLT-0072	100072	MOTORCYCLE	LIC-00072	Rot
+518d29be-3b1c-495b-88c2-c4e8dea5caf5	f11a2ddc-8ddc-4d65-8404-63e88cab1d65	PLT-0073	100073	TUK_TUK	LIC-00073	Blau
+efbddacf-d9f7-4ccd-939b-5aff04ea1e8b	0ff80b8f-e812-451f-b9fc-010ce82df078	PLT-0074	100074	E_BIKE	LIC-00074	Schwarz
+1a3b7f37-5600-419a-b42f-57d96b7ecd42	996102bc-f988-4999-aef4-1be05d70efba	PLT-0075	100075	MOTORCYCLE	\N	Weiß
+cbcdb165-4ca5-463e-8ac3-8254d1355eb7	6e459c96-fbb5-425b-bdb1-3c7a8a4e6316	PLT-0076	100076	TUK_TUK	LIC-00076	Rot
+e9d4f95c-2935-416b-9671-d39bf7a2668c	6f12fca4-36d5-4dd5-b754-77fa9e8bc312	PLT-0077	100077	E_BIKE	LIC-00077	Blau
+55720d77-4df8-4999-a245-e8173f77888f	3cec469b-508d-4cb7-8303-f2e0f8a00ca8	PLT-0078	100078	MOTORCYCLE	LIC-00078	Schwarz
+02d70635-4175-43db-ad7a-34006bf1f97d	8044d544-51bc-40ed-87c0-7a074e8fd021	PLT-0079	100079	TUK_TUK	LIC-00079	Weiß
+622e2301-f16c-4b13-93d5-6a0f6024187a	d14e6464-ecab-42b2-8460-ccc9c69a8b0d	PLT-0080	100080	E_BIKE	\N	Rot
+7ff514d1-eee9-4eab-93a5-18b776130747	adb7a067-6aaa-485c-a2d5-cbdadd0d6c0c	PLT-0081	100081	MOTORCYCLE	LIC-00081	Blau
+9d500048-6297-4ba8-b4f1-83d6c909e8a9	8dfc5f65-0d71-4073-8eaa-2295fee1b7c6	PLT-0082	100082	TUK_TUK	LIC-00082	Schwarz
+81ab230c-0bdb-4127-be1a-b3d36bf49fa8	22adb407-61df-407a-80b6-a3dfade5ee44	PLT-0083	100083	E_BIKE	LIC-00083	Weiß
+d0f5b311-a9ce-43f8-8ec1-0ba3ac5d5c00	dd16b55d-ee72-4b4e-aa7c-8a0d27d6548b	PLT-0084	100084	MOTORCYCLE	LIC-00084	Rot
+c274bdf4-a50d-48f4-a0dd-fd1bcb1e5016	b49d9ef4-74b3-42cc-99b6-79b2dddc019d	PLT-0085	100085	TUK_TUK	\N	Blau
+3a1f728c-b331-4d17-8657-25606c1cc409	2ffe2399-e4e3-4550-8221-d388debcf3f1	PLT-0086	100086	E_BIKE	LIC-00086	Schwarz
+fce764b5-9820-4e37-bd09-8c1e80704668	e7bd5342-1464-429e-842d-672b13c91dc9	PLT-0087	100087	MOTORCYCLE	LIC-00087	Weiß
+90ad8d6a-d57e-45cd-965f-97f26c39c511	074b0f82-e542-4fed-abc4-62a5faac94ec	PLT-0088	100088	TUK_TUK	LIC-00088	Rot
+2928f0d3-b2f9-4c1c-96cb-8110281b2fcc	8fcdd32c-2099-49ff-b1db-49465f20dd3b	PLT-0089	100089	E_BIKE	LIC-00089	Blau
+eaaa20bc-6fd0-4aa9-affd-5168a1375340	0423fe7f-d44b-4650-95a0-cd78f9b065b6	PLT-0090	100090	MOTORCYCLE	\N	Schwarz
+2eee4d6d-cacf-41ea-aa06-d80801ebc701	5d0295cb-cf36-46fa-8d70-3743140fa9eb	PLT-0091	100091	TUK_TUK	LIC-00091	Weiß
+9e91afeb-fb82-4216-b17f-c27541b23f13	d0cb3fab-4811-4d74-a129-9ad267be5f58	PLT-0092	100092	E_BIKE	LIC-00092	Rot
+d01afef0-d089-45f0-a289-498e833a911c	df8f9cbb-daae-435d-ae41-13da008f5bdb	PLT-0093	100093	MOTORCYCLE	LIC-00093	Blau
+97a4b33d-9495-4b84-90a0-0e960a1a6fdb	3f2936a0-8039-41f0-a224-fe2a94896dd1	PLT-0094	100094	TUK_TUK	LIC-00094	Schwarz
+66892e6c-e8ad-474a-9a7d-d530ec167ea2	0c20fd10-447c-45e4-bb02-8d205dcc2f3d	PLT-0095	100095	E_BIKE	\N	Weiß
+fea9a63c-63bc-4323-8384-1962d4bf1582	7533501c-18c9-4ef9-9848-66d77f86a802	PLT-0096	100096	MOTORCYCLE	LIC-00096	Rot
+afe43f48-f0cf-4893-a570-07e8559c8dfc	b7318525-c7b8-4b57-a9f2-1c077d334600	PLT-0097	100097	TUK_TUK	LIC-00097	Blau
+de4fff84-fe68-409e-907f-790c6d00b63f	4de292ec-50a2-4d8a-91a5-b3b9ae956f00	PLT-0098	100098	E_BIKE	LIC-00098	Schwarz
+23007234-bae8-4178-82cc-cfa0908c3b6d	82b00486-c517-4bc2-9f08-d1a7c2fda357	PLT-0099	100099	MOTORCYCLE	LIC-00099	Weiß
+67031298-fba6-4d5c-8300-b7f69366ab2d	0d50a21b-b250-4e75-976a-68b557a9a6c4	PLT-0100	100100	TUK_TUK	\N	Rot
+93613010-6743-46db-aaa6-ed3169ad0a8f	51898327-4bf9-4f11-9d0e-7a75a17d25b9	PLT-0101	100101	E_BIKE	LIC-00101	Blau
+a8fd5ca9-d9b1-4e18-a0db-d9ebe825eb64	b0f3f6cd-add2-4216-8edd-b3709b0c3567	PLT-0102	100102	MOTORCYCLE	LIC-00102	Schwarz
+72323608-da62-4caf-970e-fc1da1352b30	9609010c-9777-4bfb-b450-faa2a986278b	PLT-0103	100103	TUK_TUK	LIC-00103	Weiß
+60492def-66ba-4308-952f-2d6d56de4422	053b0f06-c972-470a-bcd1-a1d5bcddb499	PLT-0104	100104	E_BIKE	LIC-00104	Rot
+a33d81ce-5f06-45c0-ae48-cc7b30eb8eb2	b2d67c99-e124-4896-8ebe-4efdeb5e2399	PLT-0105	100105	MOTORCYCLE	\N	Blau
+2f52db47-0d33-41e7-82e1-a3679468a8e8	662e5b06-beed-49c2-a785-956b464ebfe6	PLT-0106	100106	TUK_TUK	LIC-00106	Schwarz
+e7f96aad-2b53-4d79-a48c-dc1eb15b296d	3a8da036-0488-475b-be34-d58a3f7d7483	PLT-0107	100107	E_BIKE	LIC-00107	Weiß
+62210192-f81f-44e8-85c5-8526d6669747	bab716db-86c0-46b8-88a9-5bd449f8c696	PLT-0108	100108	MOTORCYCLE	LIC-00108	Rot
+f38c42d0-983b-43cb-bd77-17aaad6bdd19	df0ac1e5-9aee-4d01-ac24-86e02bf521e1	PLT-0109	100109	TUK_TUK	LIC-00109	Blau
+4efe03e7-4883-4cee-ae3e-f421db567ae2	b975db1a-97b5-4e30-beb9-c0024a05363a	PLT-0110	100110	E_BIKE	\N	Schwarz
+a2f616c5-a383-4c62-8b5a-44ccfc6f573d	d2ad4b39-d144-4e07-b933-139f7d7f8694	PLT-0111	100111	MOTORCYCLE	LIC-00111	Weiß
+6afdc8eb-79e9-43ab-ba60-ced233766816	e70b1c66-1467-4164-b0e7-93d48347ae63	PLT-0112	100112	TUK_TUK	LIC-00112	Rot
+282d8121-5f95-44a1-8467-2851aab36b2c	8472257a-5ccd-428c-ba79-7b1cf001be76	PLT-0113	100113	E_BIKE	LIC-00113	Blau
+b97915b9-1807-4d0a-9ecb-32326f9c5e3d	12639d07-45d7-47a1-bd5f-10c53cf9d7a4	PLT-0114	100114	MOTORCYCLE	LIC-00114	Schwarz
+337738f5-8e3b-4e17-bea0-17a313379bce	704c71c8-0a55-4351-8f0c-473b5d9db128	PLT-0115	100115	TUK_TUK	\N	Weiß
+ed5b6930-b6f6-4ffb-abdd-98bd474ee022	b06820c4-50b1-46cd-8412-b910f2f61af4	PLT-0116	100116	E_BIKE	LIC-00116	Rot
+0391f54a-e5dd-4b3e-8742-23777a2ab8b5	b0b9954f-1ebb-4df2-9991-6ca27b5c718c	PLT-0117	100117	MOTORCYCLE	LIC-00117	Blau
+2878f973-df0f-48a2-a8d6-db8f7078a0fa	e1d3e6dd-cdf4-4c32-aab1-6cb804734bb3	PLT-0118	100118	TUK_TUK	LIC-00118	Schwarz
+bd1b5ad5-434e-4b4e-a65e-8e28d74a0afa	7b6c8065-9ad3-48e4-a6ce-17e8ed269670	PLT-0119	100119	E_BIKE	LIC-00119	Weiß
+492a3a64-7ad7-49e4-9016-f8cbaf800efd	a5d2b0ea-b36a-4201-91ef-9d56a2554a6a	PLT-0120	100120	MOTORCYCLE	\N	Rot
+29cd1179-1889-4f4b-a5a5-6b22405660b1	ee2e735a-5a5a-4b73-9d78-f1607dcaab47	PLT-0121	100121	TUK_TUK	LIC-00121	Blau
+9590a5d5-cec2-4c53-9297-9d4df6b4f266	caae134c-e3c8-4144-8b25-4820f86b7765	PLT-0122	100122	E_BIKE	LIC-00122	Schwarz
+1151feba-2586-47e6-8321-56be8dcff715	22d50961-69f1-4031-a4f8-64035c033221	PLT-0123	100123	MOTORCYCLE	LIC-00123	Weiß
+f57d6820-bead-49b2-b544-f6567dc40bf4	10b36268-cc63-47bc-88da-765655e4cea9	PLT-0124	100124	TUK_TUK	LIC-00124	Rot
+dea5b2ee-7727-4c31-924e-689e6ebf69c6	5d8c948c-0b4d-4c99-acea-4c54b98aec97	PLT-0125	100125	E_BIKE	\N	Blau
+e968ed27-f7d8-4e89-9ccf-a8b4112b748a	4cfad403-375a-4f4b-98b4-ef6fea770c22	PLT-0126	100126	MOTORCYCLE	LIC-00126	Schwarz
+62c00f3c-8ba5-4952-8ee5-1b87e8589845	fcdb501e-043f-423e-8a00-a31cd045a5a7	PLT-0127	100127	TUK_TUK	LIC-00127	Weiß
+ce97a26c-cd65-4711-a9e5-3ca019c94a08	835733c2-ea35-48bf-95ca-92b1851ea30e	PLT-0128	100128	E_BIKE	LIC-00128	Rot
+ae94d2b2-c413-405d-87a9-b9400feb8826	9d0eae0f-58aa-44e0-8ba8-3ed68363ffc9	PLT-0129	100129	MOTORCYCLE	LIC-00129	Blau
+e951f533-6fc8-4bf4-9ee8-39d290fbd391	a2e70a78-d567-463b-9ecc-8d637797d19f	PLT-0130	100130	TUK_TUK	\N	Schwarz
+5ecc9bf3-4e2a-4cf2-8907-c31f9d4ba077	7f757855-3a38-4b39-bc75-4cf6445c4912	PLT-0131	100131	E_BIKE	LIC-00131	Weiß
+7c5bf8cc-c99d-42d6-8751-27c4ae7a133e	46162c6b-8f13-4083-9a3f-0e19c18ee23e	PLT-0132	100132	MOTORCYCLE	LIC-00132	Rot
+67535478-1207-44a4-bfca-06a8c12d6b88	6217299b-e333-4da5-a519-0ccf932b959b	PLT-0133	100133	TUK_TUK	LIC-00133	Blau
+f4db4e3e-caeb-4954-9bf5-79b5bc45a6e8	869a3017-f43a-4937-bcc6-f6f5b4d41f7d	PLT-0134	100134	E_BIKE	LIC-00134	Schwarz
+2aa3afb9-80fa-4c59-a8ad-8de38bcd6e02	cf9b75bb-a7a8-41be-9af8-38c719bd64e6	PLT-0135	100135	MOTORCYCLE	\N	Weiß
+11d988d5-394b-41b7-aa3f-c246628d4271	fbecfc1e-ea0f-488a-ac89-dcf890ac4f13	PLT-0136	100136	TUK_TUK	LIC-00136	Rot
+bc976e55-05bd-4ae9-aa22-7877d8485469	362d3aad-c8ba-40b3-a33b-84c8a18581c3	PLT-0137	100137	E_BIKE	LIC-00137	Blau
+baff3aed-8a3a-4722-8581-7d6efe684302	d30e5db7-7d8f-43f1-abbd-4e6a1a49c008	PLT-0138	100138	MOTORCYCLE	LIC-00138	Schwarz
+cb62a5fa-c7b2-4464-81f5-4a2423177545	f0831d36-71a6-49d9-a33d-3e54eec76b5e	PLT-0139	100139	TUK_TUK	LIC-00139	Weiß
+41cb6a64-b714-4090-bbba-44b7a65721c6	11e21f8b-d4fd-453a-8a11-5885a9f055b3	PLT-0140	100140	E_BIKE	\N	Rot
+a227eb2f-26d7-4897-ae06-c357985f3881	74b86b50-59e4-4a90-82a5-2a7b59c32b91	PLT-0141	100141	MOTORCYCLE	LIC-00141	Blau
+f4edaa20-6a93-4045-9176-f2563e16efd7	d3eaaeb7-9000-4590-bc74-202d562aa0c5	PLT-0142	100142	TUK_TUK	LIC-00142	Schwarz
+37d97c06-0cb5-45c3-a3a6-b708f047fdf1	9956ad66-2e8a-435d-b205-5ab164785ff5	PLT-0143	100143	E_BIKE	LIC-00143	Weiß
+b26083a8-e46e-4a14-b263-f576d074ffa9	d42a9666-b334-4af1-a5b5-16db8d540045	PLT-0144	100144	MOTORCYCLE	LIC-00144	Rot
+2fa76ea7-6067-4fe4-9296-27a04332a315	5b3b363d-92df-489f-881d-5d63d534d138	PLT-0145	100145	TUK_TUK	\N	Blau
+21a4afcb-6fe5-463b-a89c-2d9434f4714b	dd7b66c8-9987-4990-8938-3b4777ebcd2d	PLT-0146	100146	E_BIKE	LIC-00146	Schwarz
+70de5b3e-9af1-4d28-9e27-b8e8ecdee6f5	018cd357-8737-46a8-906b-a2720bb9f0a1	PLT-0147	100147	MOTORCYCLE	LIC-00147	Weiß
+deaddbe0-e8ba-4a99-9709-46cbda4b1033	3121660e-4e8b-4059-8883-aec0bfa6d7ed	PLT-0148	100148	TUK_TUK	LIC-00148	Rot
+dea20159-dd11-4f80-ba66-134562adb3be	167d9d5b-b8a8-4a74-ae94-5221ea332cc6	PLT-0149	100149	E_BIKE	LIC-00149	Blau
+61a1eaae-af99-443a-b7af-82523aaef36f	0e0fc26c-2512-42e3-8202-35ba2508c685	PLT-0150	100150	MOTORCYCLE	\N	Schwarz
+727e033c-eb74-4157-acc3-c056fb94a998	996e4a75-943e-4878-a424-78a7c84fd1ae	PLT-0151	100151	TUK_TUK	LIC-00151	Weiß
+328de156-9fff-432c-895c-1cd82ed10e1c	d8f9ea4d-6fff-420a-ba98-e3b7da4354c7	PLT-0152	100152	E_BIKE	LIC-00152	Rot
+d236ed77-182d-4799-85dc-b6cf29d3b3da	df72ae7d-5f40-4a62-afb0-b067f155aca5	PLT-0153	100153	MOTORCYCLE	LIC-00153	Blau
+af17bf56-f5ef-4c0b-9609-26cc726702a4	d5cd4420-d62a-4616-8d72-df90b0d3a9c2	PLT-0154	100154	TUK_TUK	LIC-00154	Schwarz
+a9e51d54-9846-41dd-80ed-2e0ea7c2a6b2	6ff7bfae-a2d3-46ad-8690-446aeafaae4a	PLT-0155	100155	E_BIKE	\N	Weiß
+d63bea69-b589-4dcf-b545-43b110e5ddcd	573531ac-e9df-4d2b-a656-f71fe54c8dae	PLT-0156	100156	MOTORCYCLE	LIC-00156	Rot
+6f978f10-d373-4bdf-903d-d48d0d67e39d	3bc51889-fb38-4931-907a-8a435fc5538f	PLT-0157	100157	TUK_TUK	LIC-00157	Blau
+e60a78dd-9b7e-4193-be8e-75f3cd8119ca	8a1b0456-29bd-48b1-abee-e2ab66f8a60d	PLT-0158	100158	E_BIKE	LIC-00158	Schwarz
+153d6a1e-f5ed-41df-87cc-305e4719c146	244c9da4-8c7a-4583-b0d2-a49295a1d852	PLT-0159	100159	MOTORCYCLE	LIC-00159	Weiß
+e7c1e79f-39d4-4405-9fa8-aae03e8b9255	20bd040a-2cd5-40aa-bfd3-47eae1b81e0a	PLT-0160	100160	TUK_TUK	\N	Rot
+9c084234-a8d9-4b16-8bdc-9b6213b6dda6	a680cf29-0bdc-455e-8c91-d1a9d4e05e1e	PLT-0161	100161	E_BIKE	LIC-00161	Blau
+baa5a459-7373-4dfc-93a8-237c519bbae0	96705b1d-87bd-44ea-bbb4-2239cde38395	PLT-0162	100162	MOTORCYCLE	LIC-00162	Schwarz
+16e00527-06ba-4963-9e66-0f67ccc2f5f2	53ad38df-3ec1-4a08-b4a7-09be6835c48a	PLT-0163	100163	TUK_TUK	LIC-00163	Weiß
+8a3e9bfc-c6ad-411e-9bd0-8a3a21aa9c62	5a8bc237-7ec3-45e5-8819-9bb2479caa11	PLT-0164	100164	E_BIKE	LIC-00164	Rot
+66ce8bc5-de3a-4b34-9f78-4332862b885e	04ced6c0-304b-4d30-af18-c9247d2c79b3	PLT-0165	100165	MOTORCYCLE	\N	Blau
+2f1e7d4b-002e-4928-8602-d3116a3d758e	4e1e77a2-3cbc-4513-adab-8007e733ff71	PLT-0166	100166	TUK_TUK	LIC-00166	Schwarz
+e8724f9f-b782-4003-9116-d0b46a342576	691fab22-4a0f-4f49-a8fd-215dc765e46a	PLT-0167	100167	E_BIKE	LIC-00167	Weiß
+3b4517db-bd42-4511-a4dc-b62eecef23b7	735e12bc-e466-49c2-922d-e0aaae434a4f	PLT-0168	100168	MOTORCYCLE	LIC-00168	Rot
+655addb1-7f24-4440-8744-b47ed06d081c	c9caf0bc-53bc-4508-a2de-1f3081c32bba	PLT-0169	100169	TUK_TUK	LIC-00169	Blau
+30d925b1-3f91-4446-b613-30312e57d28e	b56aef33-89a6-4855-9935-0f8d3c839053	PLT-0170	100170	E_BIKE	\N	Schwarz
+9d8110a3-fe8b-4585-8988-7138dec02ab4	494ecae7-35fb-4548-8b6f-ec958520cdd9	PLT-0171	100171	MOTORCYCLE	LIC-00171	Weiß
+b802ff9d-2f47-4458-b136-d9a8a327ba89	48227f65-355c-444b-8ff6-58c40969ec2b	PLT-0172	100172	TUK_TUK	LIC-00172	Rot
+1bce5ed7-4e5c-40c7-9fe0-adb6fb10fe6a	066a7b6f-ee9e-4a9f-b4de-632def38dcb9	PLT-0173	100173	E_BIKE	LIC-00173	Blau
+e03aa5df-2385-470b-9b82-7749837d2558	883029ac-a92b-449a-8523-94abc6b8d2ef	PLT-0174	100174	MOTORCYCLE	LIC-00174	Schwarz
+0f4afcae-4e82-4d6f-83a5-1305e144f182	8e0e9779-243e-449e-a430-88810a5fcbc9	PLT-0175	100175	TUK_TUK	\N	Weiß
+289bd1d2-4cfb-42fe-8ce3-e196f26479d0	5596aa47-ae83-4fe8-9d8f-460794581354	PLT-0176	100176	E_BIKE	LIC-00176	Rot
+2ad94cf6-af92-4014-b96c-29b7cda1c993	1316382f-ce35-4606-ba8d-dee862c4c2da	PLT-0177	100177	MOTORCYCLE	LIC-00177	Blau
+b8a94fa7-8987-4284-9f18-96105c18069d	5a14d97c-6562-4d09-b05a-e06762e9f48d	PLT-0178	100178	TUK_TUK	LIC-00178	Schwarz
+214897df-702b-4fe7-a5e1-f4e1431fb8b6	e34554d4-fb1f-45f1-9e28-92191f2ddfb2	PLT-0179	100179	E_BIKE	LIC-00179	Weiß
+b8604e25-7764-45f4-ba39-dc3322c18a94	4271b252-86b8-4b6d-a0cf-59558e61f01b	PLT-0180	100180	MOTORCYCLE	\N	Rot
+06d992b5-4c1d-4107-ad14-47e73a559b95	cb380e01-1de5-4846-8ddf-6eb01b5e2640	PLT-0181	100181	TUK_TUK	LIC-00181	Blau
+7705c6a6-9057-470e-a522-7fd1ab20d049	a36c61e9-3919-443a-ad81-139dc3088a42	PLT-0182	100182	E_BIKE	LIC-00182	Schwarz
+43ace392-3fc1-4ae6-920f-0f82ae9b9520	6caa2d91-1274-453d-a054-b355b8304991	PLT-0183	100183	MOTORCYCLE	LIC-00183	Weiß
+39f83649-04a1-49e5-a426-f12468944b4d	91139f6f-27e0-4b5b-92fd-b552a9ff7b90	PLT-0184	100184	TUK_TUK	LIC-00184	Rot
+d5f82ff1-035b-4cf8-84a0-de85b75383d4	c35cea42-827a-4880-ac22-e350eb317189	PLT-0185	100185	E_BIKE	\N	Blau
+abbe9843-9bc9-46c3-9dbc-302e27d702a8	f4003d27-8c4f-47ed-8455-8aad6b185d22	PLT-0186	100186	MOTORCYCLE	LIC-00186	Schwarz
+d38e7068-1ae4-41e8-a636-6e319f332a1d	44963190-e351-46a6-8930-3353ad3c3b29	PLT-0187	100187	TUK_TUK	LIC-00187	Weiß
+e5ea1ed3-fc1a-410e-a6c0-44938739a4b7	5d6cd6d6-c045-4fb8-9eec-1cb40e77ff3f	PLT-0188	100188	E_BIKE	LIC-00188	Rot
+af4e296e-bc74-49e0-a490-238154dd1566	0cfce139-60f4-49cb-acc8-ccbc0fc9f7ed	PLT-0189	100189	MOTORCYCLE	LIC-00189	Blau
+e3ec2260-3b00-42b4-97d4-325bbd4a6813	33f9c4bf-b126-4ff1-98a5-748fb25c6ae8	PLT-0190	100190	TUK_TUK	\N	Schwarz
+8d6a22c3-81d5-4552-bbe1-38e0f931038f	6cbd9039-9bae-4f6f-b567-0179dcb44600	PLT-0191	100191	E_BIKE	LIC-00191	Weiß
+5cd2e8c9-c572-49fc-a5db-8e964f657076	9d1d111b-57a6-474f-ad32-89cb6472d7bc	PLT-0192	100192	MOTORCYCLE	LIC-00192	Rot
+4dded77b-80e6-4758-bbb2-dcd85ef3064b	77d6c817-f787-471f-b7d7-5947e541aee8	PLT-0193	100193	TUK_TUK	LIC-00193	Blau
+f0422715-fd98-40db-b4b6-ecd28e1af4f4	ed12266b-1814-4525-8d1c-38af96250dd1	PLT-0194	100194	E_BIKE	LIC-00194	Schwarz
+4ea37d65-fe3f-47e6-b5bd-a1de190386a8	1250f4c2-5cfb-4d35-9438-666984197a1c	PLT-0195	100195	MOTORCYCLE	\N	Weiß
+c8d260d9-bfcf-4a27-a434-c540a1adad05	70d81a62-f323-4d40-bec1-07c02a6a51e0	PLT-0196	100196	TUK_TUK	LIC-00196	Rot
+7c3dfad6-8762-47b1-adc7-d609a1569ccb	035d61d5-b57e-4617-8705-78439031be6c	PLT-0197	100197	E_BIKE	LIC-00197	Blau
+6a67f0a6-e0dc-43d8-bc6e-7770ea526075	2eddd1b5-abf2-415e-8128-4d3471fba618	PLT-0198	100198	MOTORCYCLE	LIC-00198	Schwarz
+3470d91c-7b0d-4ebd-8561-d445b2c806f5	b3f85e1d-a8e3-440e-9a3e-e23cdbb3e949	PLT-0199	100199	TUK_TUK	LIC-00199	Weiß
+647d18be-82b6-449b-9d85-83a86bc7396f	f58d4d98-a208-48a8-9130-dbe5a0c5f53c	PLT-0200	100200	E_BIKE	\N	Rot
+\.
+
+
+--
+-- Data for Name: laundry_businesses; Type: TABLE DATA; Schema: public; Owner: smart_laundry
+--
+
+COPY public.laundry_businesses (id, owner_id, name, address, phone, latitude, longitude, profile_image_url, cover_image_url, business_license_number, rating_avg, open_time, close_time, status, created_at, updated_at) FROM stdin;
+3f619b1f-7921-4e95-a227-e39946fe90a1	7d0057e9-832a-4115-bb28-54c2725fd5c8	Testing	Mount Everest, 63, Oknha Chrun Youhak Street (294), Sangkat Boeng Keng Kang Ti Pir, Khan Boeng Keng Kang, Phnom Penh, 120103, Cambodia	09992888	11.553646562597466	104.92630406114108		/public/uploads/Screenshot 2026-02-21 at 4.15.49 in the afternoon (2).png	1234567890	0	08:00:00	20:00:00	APPROVED	2026-03-08 11:38:52.086166+00	2026-03-08 11:38:52.08618+00
+853f1e22-5b82-4717-aefa-17d45285ddad	7d0057e9-832a-4115-bb28-54c2725fd5c8	Lyheng Laundry	Mount Everest, 63, Oknha Chrun Youhak Street (294), Sangkat Boeng Keng Kang, Phnom Penh, 120103, Cambodia	097778989	11.553648306328471	104.92636871003239		/public/uploads/Screenshot 2026-02-21 at 4.15.49 in the afternoon (2).png	1234567890	0	08:00:00	20:00:00	APPROVED	2026-03-08 11:21:49.965647+00	2026-03-08 11:21:49.965657+00
+\.
+
+
+--
+-- Data for Name: laundry_services; Type: TABLE DATA; Schema: public; Owner: smart_laundry
+--
+
+COPY public.laundry_services (id, name, code, description, created_at, updated_at) FROM stdin;
+1	WASH	WASH001	Washing service	2026-03-08 11:15:13.553669+00	2026-03-08 11:15:13.553669+00
+2	DRY_CLEAN	DRY001	Drying service	2026-03-08 11:15:13.553669+00	2026-03-08 11:15:13.553669+00
+3	IRON	IRON001	Ironing service	2026-03-08 11:15:13.553669+00	2026-03-08 11:15:13.553669+00
+\.
+
+
+--
+-- Data for Name: order_items; Type: TABLE DATA; Schema: public; Owner: smart_laundry
+--
+
+COPY public.order_items (id, order_id, business_service_id, service_id, service_name, pricing_type, measure_type, unit_price, quantity, sub_total, note) FROM stdin;
+a626d3aa-4f09-4c08-80a1-bf6a40f4f9d0	c8e27e94-37d7-43a4-a8dd-c8594d9a1da9	9aef9237-e569-494c-8931-52b7e412935c	1	WASH	PER_WEIGHT	kg	1	5	5	Wash - mixed clothes
+ad09f8c8-d632-4796-9ade-df3ca4d86cc2	c8e27e94-37d7-43a4-a8dd-c8594d9a1da9	4da179b1-f570-4c2e-8821-7dfde315ed0a	2	DRY_CLEAN	PER_WEIGHT	kg	2	3	6	Dry clean
+4fdbfadd-14cb-411c-9b79-28ffe7115b8a	e649e4f2-57fc-4886-877f-e2a458c2cde8	4da179b1-f570-4c2e-8821-7dfde315ed0a	2	DRY_CLEAN	PER_WEIGHT	kg	2	3	6	Dry clean
+9154a6cf-b381-4047-8a2d-35af2985c43a	e649e4f2-57fc-4886-877f-e2a458c2cde8	9aef9237-e569-494c-8931-52b7e412935c	1	WASH	PER_WEIGHT	kg	1	3	3	Wash - mixed clothes
+c7a6f602-73c1-4466-aab1-d1a2a61711f6	e834be7b-b2fe-4ddd-9464-2f3d180b114d	9aef9237-e569-494c-8931-52b7e412935c	1	WASH	PER_WEIGHT	kg	1	1	1	
+a76c960b-1a63-49e1-b592-9a88d5277f4c	e834be7b-b2fe-4ddd-9464-2f3d180b114d	4da179b1-f570-4c2e-8821-7dfde315ed0a	2	DRY_CLEAN	PER_WEIGHT	kg	2	1	2	
+\.
+
+
+--
+-- Data for Name: orders; Type: TABLE DATA; Schema: public; Owner: smart_laundry
+--
+
+COPY public.orders (id, order_no, customer_id, business_id, driver_id, status, pickup_method, placed_at, scheduled_pickup_at, scheduled_dropoff_at, pickup_address, delivery_address, notes, subtotal, discount, total, created_at, updated_at, pickup_latitude, pickup_longitude, delivery_latitude, delivery_longitude) FROM stdin;
+c8e27e94-37d7-43a4-a8dd-c8594d9a1da9	ORD-20260315202317-1170F1	2728b82b-fd4c-4690-87f0-806c5d492035	3f619b1f-7921-4e95-a227-e39946fe90a1	8cc67c99-81df-4a9e-8bd7-ceae4f07867a	ACCEPTED	PICKUP	2026-03-15 12:23:17.001023+00	2026-03-16 09:00:00+00	2026-03-17 18:00:00+00	Street 271, Boeung Keng Kang, Phnom Penh	Street 271, Boeung Keng Kang, Phnom Penh	Please handle delicate clothes carefully.	11	0	11	2026-03-15 12:23:17.001033+00	2026-03-15 14:30:22.716964+00	11.5564	104.9282	11.5564	104.9282
+e649e4f2-57fc-4886-877f-e2a458c2cde8	ORD-20260315202410-6A662F	2728b82b-fd4c-4690-87f0-806c5d492035	3f619b1f-7921-4e95-a227-e39946fe90a1	8cc67c99-81df-4a9e-8bd7-ceae4f07867a	READY_FOR_DELIVERY	PICKUP	2026-03-15 12:24:11.000454+00	2026-03-16 09:00:00+00	2026-03-17 18:00:00+00	Street 271, Boeung Keng Kang, Phnom Penh	Street 271, Boeung Keng Kang, Phnom Penh	Please handle delicate clothes carefully.	9	0	9	2026-03-15 12:24:11.000468+00	2026-03-19 15:46:23.507762+00	11.5564	104.9282	11.5564	104.9282
+e834be7b-b2fe-4ddd-9464-2f3d180b114d	ORD-20260321020754-414506	2728b82b-fd4c-4690-87f0-806c5d492035	3f619b1f-7921-4e95-a227-e39946fe90a1	\N	CANCELLED	PICKUP	2026-03-20 18:07:54.383905+00	2026-03-20 18:07:00+00	2026-03-21 18:07:00+00	Mount Everest, 63, Oknha Chrun Youhak Street (294), Sangkat Boeng Keng Kang Ti Muoy, Khan Boeng Keng Kang, Phnom Penh, 120102, Cambodia	Mount Everest, 63, Oknha Chrun Youhak Street (294), Sangkat Boeng Keng Kang Ti Muoy, Khan Boeng Keng Kang, Phnom Penh, 120102, Cambodia		3	0	3	2026-03-20 18:07:54.383922+00	2026-03-20 18:28:43.832552+00	0	0	0	0
+\.
+
+
+--
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: smart_laundry
+--
+
+COPY public.users (id, full_name, user_name, email, phone, password_hash, role, status, created_at, updated_at) FROM stdin;
+3f3e1015-f82b-4265-a1b7-5d99be201560	Driver 1	driver1	driver1@example.com	+855969000001	$2b$12$h9vnGGnFHWfZ7STKWeNDMe9frg3Majonx6f3S6yOXWlJDyOaR8pby	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d5a4674d-0ab8-4f5b-ad7b-066a88c7a501	Driver 2	driver2	driver2@example.com	+855969000002	$2b$12$Zx.6RCuC8ypqV3h7Sf1Sru9wSfAxA0GlhiFjNm3WQVKTrjBgqG9Ti	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f2ffd2a8-1561-4ae6-b781-62f6e5f143de	Driver 3	driver3	driver3@example.com	+855969000003	$2b$12$fmaMVNZIaJdFi.YvLjthROLS9yE4No7Tosa8nWNU3qLMsCPuOTJze	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+2fe00241-7fff-4c19-9ba7-071daa293930	Driver 4	driver4	driver4@example.com	+855969000004	$2b$12$DBTDPOcWhq3/lbomLEJ3OeDa.9UgVjFuKwGi6mB8JkR2jp6IqFMPy	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4647bd5d-9f8b-4526-b2c6-0097a996543e	Driver 5	driver5	driver5@example.com	+855969000005	$2b$12$3dB.fnsIE.c7M52yZfKFneD66d8W/Wj8fC/c8uonwRXvAIfqyxLSq	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+7ca56228-bff0-48b4-a1d1-9becf7a571c1	Driver 6	driver6	driver6@example.com	+855969000006	$2b$12$kHsETywjYikgDredvTs6/uzgJiBbqzuiIN0pi9Z0JXOsqnMT2cO8S	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+986e8d6c-128c-483e-ac05-589410f3a92f	Driver 7	driver7	driver7@example.com	+855969000007	$2b$12$PwflRWEGvNUx889KKCwC9.mBVILsD1GRm5mDFf8J6mEyljLncAVD.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6d8722b4-af72-4c9f-980f-1b40c86405ea	Driver 8	driver8	driver8@example.com	+855969000008	$2b$12$0UaKqMcN95vByg50hNXkP.bAQ5EJuJvHZ9hGSn4MGvwyF.6DAmrC6	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+e1d188a2-3423-443f-8c9e-cc87a4261a47	Driver 9	driver9	driver9@example.com	+855969000009	$2b$12$A14uZ40eA2GHvD/l4wTCxe.0dq0lsiPW.F/yu2UkZv6AwPOtXRfxC	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+1704de73-7ad8-40dc-b48c-62e6812a2faa	Driver 10	driver10	driver10@example.com	+855969000010	$2b$12$uom6ErsDujiL4oY7fRoU6.13DFzUBi9B5n.O5b2QBM..GKZeDBFIe	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+85ad7be3-89fb-4118-876d-383b4a7a8b3f	Driver 11	driver11	driver11@example.com	+855969000011	$2b$12$58YkpGo1adeCPGZxaZCv0.0dkKbfVREaaNVU5ijYBe0y3IUF3rFDO	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+16952427-fce1-407d-9382-71363e198f3b	Driver 12	driver12	driver12@example.com	+855969000012	$2b$12$4PpexPXv9g3dSsTTelvy/esOCoSRdofkBCIrCedSUQ0g43mkbXrmm	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4c05d007-8220-440b-9a62-fd5051c90392	Driver 13	driver13	driver13@example.com	+855969000013	$2b$12$tb8meiiWdQEh0H44/9yvWe1VxSU4SK6rkgoBeM6hXCfSMLyIMWBdO	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+da974da8-000a-4411-9408-b2d876d7d7fb	Driver 14	driver14	driver14@example.com	+855969000014	$2b$12$zsB./JMglACT26SJTDJApusN2qqNe9sFAtwUlzZ71uQMkzfXw8M1K	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+0a186de3-dae5-475f-81f8-ef6fa66ae0e4	Driver 15	driver15	driver15@example.com	+855969000015	$2b$12$/6CIwToevGMUVG.a247fGOlXNxFW5okSHyMcHe0tfWWBezZY8AbOG	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+cdc8a533-26c2-4897-9581-75975d7e7a3a	Driver 16	driver16	driver16@example.com	+855969000016	$2b$12$zaZpfzgCqsbky.fPk4l4CeCXTyu1ix95MmoVpg/O3biLHw3SZBPBK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+48be4f7c-1877-4dba-9d4e-70614bae9722	Driver 17	driver17	driver17@example.com	+855969000017	$2b$12$DRCihwiOoyOoVu5e.tPRWe31HDcJ5OrtHooKXCHE.t/I2fS3psymW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+aed0e89a-bc13-4166-a4ff-ed7d300d55e0	Driver 18	driver18	driver18@example.com	+855969000018	$2b$12$GP9.Uh3wnjK7/0klDSK9t.yvkr2cH5jToJEuemYEqn/3VF4FSBegq	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f525082a-6a9b-441d-93f4-d18a3b254ba9	Driver 19	driver19	driver19@example.com	+855969000019	$2b$12$lQXEJQ3t3XP5n5sgPZSURenVHcn5fb/mSv8En789fzEP7k5HBx.ju	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+218b8e59-3ce7-47a6-98e8-c4d123864e5d	Driver 20	driver20	driver20@example.com	+855969000020	$2b$12$.4vcwOOEOCEVGQ/e77OJ1.E9lJPyXcddpsEQKGbpEovljcrU5hkle	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+83a255d6-97b4-4bfd-96d5-17d0c8dce272	Driver 21	driver21	driver21@example.com	+855969000021	$2b$12$HNzesPIKhTiCQspQJzVuqueeQLR0qfGCnehg.Lm1TQUkExd9IOj/G	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f3642fe2-41e6-4c70-a645-579ec48d13a4	Driver 22	driver22	driver22@example.com	+855969000022	$2b$12$UJoViJHQuCs933NOMdjkmu1nI7N8v3zqZRhuTIjoHHWBT0CzK9yNS	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+36502945-a6bb-428b-a7c8-1d5a2fad595e	Driver 23	driver23	driver23@example.com	+855969000023	$2b$12$lgTkHfS5xrj9yZ5wfrSke.YSYL/ruWuIAF7hI/jfWDEMLOCbw7nc2	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4ccadf4a-0e04-4532-a68d-14d8749eb345	Driver 24	driver24	driver24@example.com	+855969000024	$2b$12$Av7j/Cck6LUkbPmBLUCbhuv2inxUe4VAxznYQe2Vcb0vHh/xbBmDS	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+076ad0c9-fe8f-4c4b-a6e7-bc91a4a0df36	Driver 25	driver25	driver25@example.com	+855969000025	$2b$12$tEU.FpM0msRvXfULk4e1qOnrCW1FDWQHtwU1cz/q4qx.IEaA7zsWm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+82b5c9cb-918f-455e-89e5-6529826adbf9	Driver 26	driver26	driver26@example.com	+855969000026	$2b$12$FTmJ036UcKXZjwdnAE79GeLG3R2K8pSvxRQ63zc2uplnBhep0QP3m	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f6dd24b9-46fb-41bb-a98a-3bebcd62cfff	Driver 27	driver27	driver27@example.com	+855969000027	$2b$12$lsxad4qXuIL61Bjq4EY96uUbGndf7b.r1UVEQhwPNUkyqE7Lb78bS	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4784bb62-9d7a-45e2-b298-353a662c2dc5	Driver 28	driver28	driver28@example.com	+855969000028	$2b$12$fHYUnyw4ScYh1yNbJXdHFe1y1YEr7PvwsBm3vwMHfLycxjukLxCva	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+bd9d498e-dab0-4f5b-8751-f4bc09cd0592	Driver 29	driver29	driver29@example.com	+855969000029	$2b$12$muVdvAGtUltGDhnvtfUY0OT0au.qvalRzFChdIHsC/iNqY5pjd3pm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+3ff63fbb-1e8e-495b-a4a8-e84b34147401	Driver 30	driver30	driver30@example.com	+855969000030	$2b$12$AaAxi8u9rVLYb830d1xEVuDheL0ITCnCw4lrnpNx1xjZK5FQc5y52	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f37c6597-0f49-4f44-b766-bb0811ab6d41	Driver 31	driver31	driver31@example.com	+855969000031	$2b$12$hlMUGdN2PjSlSRgBomKsHOAkI9puFxdHUgNE7XLIqI65WvLUiyUfK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+55420e62-108c-46f5-8b65-23c07853eb93	Driver 32	driver32	driver32@example.com	+855969000032	$2b$12$KxNbH9O2m8RCELG7weP.I.Rfp/T5klIuozJMdq5RrxIJhrn/WteLC	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5747db19-dda8-4712-b18f-c294d4422d92	Driver 33	driver33	driver33@example.com	+855969000033	$2b$12$ul9ZiUeuEo4pY9kSb7aDnO6POEkaKSLXco/N1KuCf1xcIcjh6cehy	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+05a4bacb-94cf-4901-8d8a-1d121ca27e8c	Driver 34	driver34	driver34@example.com	+855969000034	$2b$12$goV8skfXJV9oNQtoXZXWbu02.5nJcwpdK0IAqnJDdE1LMwZRbFYC2	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+49b2d45e-e868-45a5-901e-938859bec525	Driver 35	driver35	driver35@example.com	+855969000035	$2b$12$nZpgxC3aQwVMOI0rN6wDcOGQcRktrS6.BxB5y34lMmqtnYG2fbzs2	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+176cf081-ace2-4b66-8d5b-799852837039	Driver 36	driver36	driver36@example.com	+855969000036	$2b$12$unZOn47ZCaMol/YTg5nzlOafMl8xySJfuqKRL.hFLnKsfjiF6rBfO	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+9d779b0b-f2c6-4183-9f0e-c71439335286	Driver 37	driver37	driver37@example.com	+855969000037	$2b$12$7tTllLJRvLgcuTXKDUwbJuoGUlPihvh4QvZIaZk.uXiYBbwNX5N7u	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+3dd998c3-52ea-412f-88b4-76f982bd1523	Driver 38	driver38	driver38@example.com	+855969000038	$2b$12$R99V/z96v9iMEWlV2v90W.1luEF56D7q6ckaw9szhuxSK2GhvFTCu	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+301cd839-0194-48cd-b99d-f3fc301c0e47	Driver 39	driver39	driver39@example.com	+855969000039	$2b$12$MSMRnY934gAEWmvl.LDL7.DOHk.OYMzFOMQlx00CEF.JJ0v5La1/q	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+7efa6fd7-bcb3-4380-9e1f-e1b9e97e56e2	Driver 40	driver40	driver40@example.com	+855969000040	$2b$12$nTvs2BvGmEZnXzfyaRZ/l.4NxbJKYlLE1kNTHvROuf0iL5EDkWx1.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6768d9e3-8e42-44d5-9e0b-5718844118cd	Driver 41	driver41	driver41@example.com	+855969000041	$2b$12$BLLK4m2Z6BJdstkVo9ukjujvVP15rUsBx48GjY.0n1GtLw1Hw2T8e	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+80780508-29b5-40a2-96c6-4dbcb5352a31	Driver 42	driver42	driver42@example.com	+855969000042	$2b$12$U9U05Ysbxu9coGCAP8uY8uUWwIp6lW7qghKaKcNvcuQaSVRJzL9wO	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+07824cb8-936a-4eab-afaa-acb307d79026	Driver 43	driver43	driver43@example.com	+855969000043	$2b$12$TypvQZ8anDmTSJ3uOTyJPOaSeVhZrk6GmCG7YsodpZ36p54XNj5Hu	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f76e7b14-dd46-40fc-9de5-baf73f2289c6	Driver 44	driver44	driver44@example.com	+855969000044	$2b$12$/5nk9wYLmofYDGcIdf7yUuHuW2qCZUssWegiltxk.RKzv2CFTX9cG	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+82c3043a-65ea-4328-b926-8ccdfb816e2f	Driver 45	driver45	driver45@example.com	+855969000045	$2b$12$WesiWYrhCXGTDkRY0xSi6.FPX.cdi2G51emUTDXuzUTRpoO3hN2WW	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+57579d27-84ef-445c-a9e5-c9cadfa7ab91	Driver 46	driver46	driver46@example.com	+855969000046	$2b$12$hn0HgplGxvGHvPWNrkIGUOJlhzpaOc3W.nVIla0g9KPk8I8n7xGp.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+3d1837e9-ddea-4aca-8ca5-2f9a84dd9c5b	Driver 47	driver47	driver47@example.com	+855969000047	$2b$12$Uj21Q/3l3C8NYrUpQ7TdC.uVoeuMEr9IJqA7vh2G7mFLn7rX/A/ku	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+9247cb00-aac5-4c20-ac8a-05211cd9e6b7	Driver 48	driver48	driver48@example.com	+855969000048	$2b$12$YwEAlFF/j82T7DTA315hwe4PEt7cICoLssrw1EYmXm6lJPrSPFA8y	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b1799f30-6877-4e77-8c40-0dd6148d44b8	Driver 49	driver49	driver49@example.com	+855969000049	$2b$12$Xln2QaUJQ.pUcyZ6W2QuBuLKG2.CFtGRz9aDggK0w.76gis6QyFrK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+534c2cb9-db05-456b-8218-f3e5378ce689	Driver 50	driver50	driver50@example.com	+855969000050	$2b$12$yCdtNfzJSREwtG8npGqyn.YuNwtP/9Q/hrjO4UKI8irmCqV9UYVvW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+040b73bd-aab9-41c3-a9db-a9529c4a1198	Driver 51	driver51	driver51@example.com	+855969000051	$2b$12$/9vSlD9l3mHWWuOb5gErEuv4L37/0o7wG1r2ih1opqMGmSxvxgSDq	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+177d4930-7303-4937-b767-d43b14e619f2	Driver 52	driver52	driver52@example.com	+855969000052	$2b$12$/uixvI2SOJSle7wCrxk2aenJPkTVt/onY023xtmsuvnp1iSAQkBqq	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+a0f1366e-1969-428b-9fac-354ca910eec9	Driver 53	driver53	driver53@example.com	+855969000053	$2b$12$RLug/2Ty1ji78YdLojSzRO7o9t9DE8/DasY3oZl0kOqegvcmKVn7a	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+ba3a6106-be70-44aa-97c4-973327a8af3e	Driver 54	driver54	driver54@example.com	+855969000054	$2b$12$PwPaKzDH5ZPjzu5x33P0zeV.N79fIGhGCcgQxYhiDrEUoaEsjqLPK	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+a5258aa4-8272-4cf8-8c27-945b7c057eb5	Driver 55	driver55	driver55@example.com	+855969000055	$2b$12$GYd3lFwtCmGxHK5LpLxBf.ZQQsJKTpIFKl98wNcWsK3TRb0R8j9gm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+508f9505-e790-40b8-9461-471144b4bafa	Driver 56	driver56	driver56@example.com	+855969000056	$2b$12$IchxcmJA35wyUDEerCxMGuQp2RAfD0GMiefYTG3qAIaMR7l1cKT8i	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+9549170e-417e-4cc5-88d3-ec24eeed5524	Driver 57	driver57	driver57@example.com	+855969000057	$2b$12$kP60mBtIrddqp.XNvMvqn./aCrIE3zk94YSWTR35HuaS70kWH/U3y	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+63a11b20-692d-400c-b39d-9a3296ca0f36	Driver 58	driver58	driver58@example.com	+855969000058	$2b$12$Eq2k1QOkR7ZJr72D6h7iSueLYDhmM1tY5S/eSS7LliFkOGjTlqYGK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+638a240f-754e-4708-9839-5cd375022bc7	Driver 59	driver59	driver59@example.com	+855969000059	$2b$12$mzrQtNLx8P3556hzagSDMe11kf51tiJRCvlOkxa9KOyC3H4VEO5Ae	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4edfe3aa-c34f-4941-b2ef-1e7c84aee8d7	Driver 60	driver60	driver60@example.com	+855969000060	$2b$12$HNJQxjptOYfuM3WPjQnwRud0tffGMfCngLwt6PpcJwM/4lmW3w7Tq	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+99f5d97a-869c-4781-ab0a-3de21aa3a060	Driver 61	driver61	driver61@example.com	+855969000061	$2b$12$fnEFqKVeTdMoLmZnc5e4puXSl/gLU/16gfdJDKlJE4udASghfo2JK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+a158dd19-bf3c-41ea-b644-66323e480c16	Driver 62	driver62	driver62@example.com	+855969000062	$2b$12$v1iMlYqX0KqSaeU70Zjrn.fsXuEcsp83kU/QVFb6Xw55uH9yxCau6	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6ace210e-56c6-4258-8812-5fe79d29b3bd	Driver 63	driver63	driver63@example.com	+855969000063	$2b$12$p7IDOBeHlzV5Wk3.CMsIu.fgFt69TcWp934w9SsJLR1vA7.6PS8Q6	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+ff6cedaf-b6ec-4b64-bcc9-7dce6bebeb93	Driver 64	driver64	driver64@example.com	+855969000064	$2b$12$Y9xZHUAz6DBs90JSrYQMKO5uLsL2ZQJHgLS3wqeSUgpN52OTyiyfq	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+ddcf6df0-08ba-4f64-8b1c-d0d48b772856	Driver 65	driver65	driver65@example.com	+855969000065	$2b$12$pQuhYnM5pidvWFy.cnuvKuFk47XQKItfyrE7H144fwSKMWRADD3S2	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+ab35d0cf-704e-4b3d-96ab-2371d798c3cf	Driver 66	driver66	driver66@example.com	+855969000066	$2b$12$mxVLVAT5o3wuIVSZ31UPjeZnbmb69W70cV7j/JQ8YB4YUSjt8PiLW	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5da6cf92-10a8-4128-a661-e180ca46f7b0	Driver 67	driver67	driver67@example.com	+855969000067	$2b$12$Ua6./YRjwzTMaLvp/1eS8OgTII0rh6T.9z9.arEzfrvmNMnrPKuWK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+79368667-8e2a-46df-b1ff-aa182c671986	Driver 68	driver68	driver68@example.com	+855969000068	$2b$12$Neq7UgGa/cKwq16od5lLQOUjGh4WPVaQwV0Ko9ZC0aaRpTukOSydi	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+8eb54cf5-1d0a-4a5b-b19c-f6d3b5c900f3	Driver 69	driver69	driver69@example.com	+855969000069	$2b$12$MygfuLyMby1NkzCYFH08XOUoeMpqRp53KfJw6Tx3NLgwjjAnQFHeS	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+ca5738c4-700f-46d9-8964-09b8a6ca77db	Driver 70	driver70	driver70@example.com	+855969000070	$2b$12$lrCrTUO9WY7fDPp3IK52XuB0XU1M9wObm6SoF6n7BB9WJmKVXDkUq	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+0b328d24-2549-4c2e-8202-2fa0cd9d2b75	Driver 71	driver71	driver71@example.com	+855969000071	$2b$12$Pdkt2s3e9DiZJVtXU2UoFep6ubrTNcO0OTvthIEUeesPrAQmQGwUa	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+ef653442-f34c-47f4-a180-0182919dcf0f	Driver 72	driver72	driver72@example.com	+855969000072	$2b$12$m6l2uL4Ut6G0kcRRTD6b7O1R.foU0W.oIWq0wsS4ppb2SALxTl1lW	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f11a2ddc-8ddc-4d65-8404-63e88cab1d65	Driver 73	driver73	driver73@example.com	+855969000073	$2b$12$dwKEe5SduG3TQbPvYDKfuOqZAx00hgIXQiQTbnZUFnUAFB89bpJg.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+0ff80b8f-e812-451f-b9fc-010ce82df078	Driver 74	driver74	driver74@example.com	+855969000074	$2b$12$melGxeTNrCpCwsWnHHA1GuT1pJBvCjypnioK6p7uuf0mdT2f/KPm6	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+996102bc-f988-4999-aef4-1be05d70efba	Driver 75	driver75	driver75@example.com	+855969000075	$2b$12$p0SpkZEZ1Hxm7sDVhTHqaOFJON9jdzeFrDfWJOmX57yjtFP1bY8yS	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6e459c96-fbb5-425b-bdb1-3c7a8a4e6316	Driver 76	driver76	driver76@example.com	+855969000076	$2b$12$qWzf745FkCMe4ADDCAmKxeohlrpwt0sPQgxgx.LV8BoYxGaKmrNSK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6f12fca4-36d5-4dd5-b754-77fa9e8bc312	Driver 77	driver77	driver77@example.com	+855969000077	$2b$12$XF7dsbzmq/I/r2eSas3u1OdJ9Ab/K0PbTAqqN/HZvDtQ1lzgVJtmi	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+3cec469b-508d-4cb7-8303-f2e0f8a00ca8	Driver 78	driver78	driver78@example.com	+855969000078	$2b$12$MHAcZbh0MNGbvuMZrMbnPeyKvDI89pKE7CTPzBvV3pEo3vKTJtK1K	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+8044d544-51bc-40ed-87c0-7a074e8fd021	Driver 79	driver79	driver79@example.com	+855969000079	$2b$12$acuuvpjoOG.P/W.GmMfMvee06CZMVWCR7shngJCeyxChdEJ8jena6	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d14e6464-ecab-42b2-8460-ccc9c69a8b0d	Driver 80	driver80	driver80@example.com	+855969000080	$2b$12$xwke/r7sioa4BJyngVnojuJRtoiBmvctUtCWE2/2tp9xg7LMg9iMq	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+adb7a067-6aaa-485c-a2d5-cbdadd0d6c0c	Driver 81	driver81	driver81@example.com	+855969000081	$2b$12$Hpxu0rUSKd0tVYZGdLrUQue34hgQXeN50vullWDBj1YeSZwDk0fvG	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+8dfc5f65-0d71-4073-8eaa-2295fee1b7c6	Driver 82	driver82	driver82@example.com	+855969000082	$2b$12$2aMrt1swQ8zqsvPEMTE3q.uZ49x6TV2xI3kc/Nwfn6hsBneKzkk9u	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+22adb407-61df-407a-80b6-a3dfade5ee44	Driver 83	driver83	driver83@example.com	+855969000083	$2b$12$xKmv6ecewB54Q9j97eKctergS0kA23EbqZCW.foMvCgZBTrIMMflS	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+dd16b55d-ee72-4b4e-aa7c-8a0d27d6548b	Driver 84	driver84	driver84@example.com	+855969000084	$2b$12$zJBusTO6ddltQDqRc4fLJOFkjOeM9S673ZwJeJIqn0/i1JiFFphAi	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b49d9ef4-74b3-42cc-99b6-79b2dddc019d	Driver 85	driver85	driver85@example.com	+855969000085	$2b$12$gjAIjupNrFxqH.Zg3wYMlO3SVUGpVTJhYNXCwrJOha9/PEsHCp.Yy	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+2ffe2399-e4e3-4550-8221-d388debcf3f1	Driver 86	driver86	driver86@example.com	+855969000086	$2b$12$wYfIo5mML66GzcQt53KmfO5GM9OobgPJ1TRzy.3GCBq1uTD4M9OMO	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+e7bd5342-1464-429e-842d-672b13c91dc9	Driver 87	driver87	driver87@example.com	+855969000087	$2b$12$WpIqz6D.//yo.CP/NczK5Onsu3h4K.rRfyJN6xF4o.RrLuFoI1Uqm	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+074b0f82-e542-4fed-abc4-62a5faac94ec	Driver 88	driver88	driver88@example.com	+855969000088	$2b$12$t2qYZAhnAbIZ1rjeiJsS7uK8/03BqWJjyW2xFwdoL0NJQy5mT22Ym	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+8fcdd32c-2099-49ff-b1db-49465f20dd3b	Driver 89	driver89	driver89@example.com	+855969000089	$2b$12$XGE3aDB/mZ1.G9q2Eqh9iuljdF4z7s51Z1IXOhqtN.SE3ytniiwHa	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+0423fe7f-d44b-4650-95a0-cd78f9b065b6	Driver 90	driver90	driver90@example.com	+855969000090	$2b$12$CmfzVBzjNPMtjnwi7PXbMep5RScx1H38GX7RWgHIZmhc88XaUB.f.	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5d0295cb-cf36-46fa-8d70-3743140fa9eb	Driver 91	driver91	driver91@example.com	+855969000091	$2b$12$ZMrtZg0L.kHeE3FuWsIGVOSA/rClfpEfhd8n25KB5KAmnCk15JYVW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d0cb3fab-4811-4d74-a129-9ad267be5f58	Driver 92	driver92	driver92@example.com	+855969000092	$2b$12$1wt3gAtzKwsV71NsM0HrB.u2fIlZk7oecp1q4jETWJ1viFnmoJLua	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+df8f9cbb-daae-435d-ae41-13da008f5bdb	Driver 93	driver93	driver93@example.com	+855969000093	$2b$12$zZXHWrvlgHzQzsjaBr1RHeYjf6/14Ec8EiikVxSUlpHwlfvTcrWfC	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+3f2936a0-8039-41f0-a224-fe2a94896dd1	Driver 94	driver94	driver94@example.com	+855969000094	$2b$12$53JGhQf9JO/u8FsCiE0LCeG81ZQWOiPLPFEiPyUzfPSsDMryzLC8S	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+0c20fd10-447c-45e4-bb02-8d205dcc2f3d	Driver 95	driver95	driver95@example.com	+855969000095	$2b$12$bRZG2I5HFlyv1Vb2iEWgU.oM3xPNYTeJscVabzFJnr4XTWAA71cAS	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+7533501c-18c9-4ef9-9848-66d77f86a802	Driver 96	driver96	driver96@example.com	+855969000096	$2b$12$wZDmqyBVOVeCT4Gn5BHjg.SZRFS1kWTQmjF9JkFHqH.qRlf57qjOS	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b7318525-c7b8-4b57-a9f2-1c077d334600	Driver 97	driver97	driver97@example.com	+855969000097	$2b$12$BwM6G3/0l2RIMpqz97Au4OLJDFPyA5ZhJ4GtI5hN7NbWYI1.nmgae	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4de292ec-50a2-4d8a-91a5-b3b9ae956f00	Driver 98	driver98	driver98@example.com	+855969000098	$2b$12$vlMAcAqhSksMlQftTU/k1eVix9USsivgTps/wCPDHg5p9c/0Sox0.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+82b00486-c517-4bc2-9f08-d1a7c2fda357	Driver 99	driver99	driver99@example.com	+855969000099	$2b$12$XUYcm7DI386S60yPbyjMNe4S.Rwc1NrVxuLwLPpdQ94Y0hTvWTlLu	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+0d50a21b-b250-4e75-976a-68b557a9a6c4	Driver 100	driver100	driver100@example.com	+855969000100	$2b$12$D6qGduySlYglji31obM4K.fG1QDUVTZR3mDObWQMPMxaqI7b84dn6	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+51898327-4bf9-4f11-9d0e-7a75a17d25b9	Driver 101	driver101	driver101@example.com	+855969000101	$2b$12$Mk603DEzOY8Qa7f8wkJT0uLHDDsoDvPnYj4z8YmsKvja8DVi/.TSy	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b0f3f6cd-add2-4216-8edd-b3709b0c3567	Driver 102	driver102	driver102@example.com	+855969000102	$2b$12$9dNekuiIJjpEtLePiHpp4.P5j9ejXDuGO9KSULEJ7mNzJ2kwcpJAS	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+9609010c-9777-4bfb-b450-faa2a986278b	Driver 103	driver103	driver103@example.com	+855969000103	$2b$12$/WldVxYpyXyxs/nvhoPRL.w5J8hCWvRyIoh8I0RqA3hQCpMZ55DXa	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+053b0f06-c972-470a-bcd1-a1d5bcddb499	Driver 104	driver104	driver104@example.com	+855969000104	$2b$12$8/lFsQie1umaqvxDmE0IxuOhvtpYokb4tVKz9TjPrKPCw28ToufNG	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b2d67c99-e124-4896-8ebe-4efdeb5e2399	Driver 105	driver105	driver105@example.com	+855969000105	$2b$12$R7YVu79nHiMjfIvnKlUcaOaECaL8u4Z8KepgON/qwypyKtnjCKPEC	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+662e5b06-beed-49c2-a785-956b464ebfe6	Driver 106	driver106	driver106@example.com	+855969000106	$2b$12$Q228L0qWt8w83unwJmoZ4OhSd7e6D.VJMgNSy.omohEaH1h0MCiK6	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+3a8da036-0488-475b-be34-d58a3f7d7483	Driver 107	driver107	driver107@example.com	+855969000107	$2b$12$dAfCE8voz3kc3kOZbQwtO.bkcPNv.6QGtcB6qBe7EpL0cFp.oE3se	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+bab716db-86c0-46b8-88a9-5bd449f8c696	Driver 108	driver108	driver108@example.com	+855969000108	$2b$12$VBNnD3TYiV9j0RCY.Kmshu4UfYCT3zE5ve7wsRVfJCfvhZozOJGy2	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+df0ac1e5-9aee-4d01-ac24-86e02bf521e1	Driver 109	driver109	driver109@example.com	+855969000109	$2b$12$WDAtektoSUetSWNrhfUH.e0qvZVMYimeUUWueaKTtYIk5qzH.w40C	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b975db1a-97b5-4e30-beb9-c0024a05363a	Driver 110	driver110	driver110@example.com	+855969000110	$2b$12$Lj3pZxs97J0iOB9Dtq2LCuVLdhoMmTugDUznPm5GD7raN4hWLSu.S	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d2ad4b39-d144-4e07-b933-139f7d7f8694	Driver 111	driver111	driver111@example.com	+855969000111	$2b$12$ER9NiSbWj0jsDSEeXdpwz.xFpamF.1J2K7QISb4y9f8gtdy7M5rby	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+e70b1c66-1467-4164-b0e7-93d48347ae63	Driver 112	driver112	driver112@example.com	+855969000112	$2b$12$8LTRKDlAnauUjWEGsrMIpucSO/kOZdq/TthvgMokCmjgA0hB6jG3W	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+8472257a-5ccd-428c-ba79-7b1cf001be76	Driver 113	driver113	driver113@example.com	+855969000113	$2b$12$QwsajdxYHtD/7dv.4mRw7es3AIXOmoSUfXxTrmmbYGQqG9ANViTkm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+12639d07-45d7-47a1-bd5f-10c53cf9d7a4	Driver 114	driver114	driver114@example.com	+855969000114	$2b$12$VtQMQNo6BYTdXkwEm8678uLAXs5Aj6Dvps6TrE7slBY/J0O0HUL1O	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+704c71c8-0a55-4351-8f0c-473b5d9db128	Driver 115	driver115	driver115@example.com	+855969000115	$2b$12$LpfAZKqezqZinHzCiwOKZexHQ8XcIf7/zTioiqvWi.ojOnnhlgMvm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b06820c4-50b1-46cd-8412-b910f2f61af4	Driver 116	driver116	driver116@example.com	+855969000116	$2b$12$q2Tzy3Hd3YAm.AGL1g36Tuu6QQvdAlNy5wYwIrLWg9Fb3rFRt5OgW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b0b9954f-1ebb-4df2-9991-6ca27b5c718c	Driver 117	driver117	driver117@example.com	+855969000117	$2b$12$vhK..v/ybcfzIXT4INpIYu9RPy6AHFGsZhHEryWaEaTqA4CbPkK5a	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+e1d3e6dd-cdf4-4c32-aab1-6cb804734bb3	Driver 118	driver118	driver118@example.com	+855969000118	$2b$12$jkBqhpMGmSOPqOLzwwZtI.L9hq7uPIbBF1z4gekt3tMxd2I55kEyC	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+7b6c8065-9ad3-48e4-a6ce-17e8ed269670	Driver 119	driver119	driver119@example.com	+855969000119	$2b$12$ytcsAYE4yAJFISujsCLJ0um7TQBlDV99zOEbJI6S2rVjwKalSYMNO	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+a5d2b0ea-b36a-4201-91ef-9d56a2554a6a	Driver 120	driver120	driver120@example.com	+855969000120	$2b$12$D23hSC2TUzjUCUqB4/neU.PbZRMxy.GeKyRRYaqtu3Xg0pnqnOLbW	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+ee2e735a-5a5a-4b73-9d78-f1607dcaab47	Driver 121	driver121	driver121@example.com	+855969000121	$2b$12$mN9zNZyzgljhOTASWoWkyehlV/l7a/7CYnXrqrleyTTg6jXFgENvK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+caae134c-e3c8-4144-8b25-4820f86b7765	Driver 122	driver122	driver122@example.com	+855969000122	$2b$12$1bxh4q5kwPAn67jBlQGN8O8QpytQ58R1sX4tiQpRB8zuz6kGHD1UK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+22d50961-69f1-4031-a4f8-64035c033221	Driver 123	driver123	driver123@example.com	+855969000123	$2b$12$8bljvLQsoaV8EDCRU.BflOCrdJ2W3ahsgQQ3MEcbDxbj/dVEF2rNi	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+10b36268-cc63-47bc-88da-765655e4cea9	Driver 124	driver124	driver124@example.com	+855969000124	$2b$12$eMrxDGXAyF71P3s9z3KS9eEWnaX3aVq3RrFGQdXuAx/UX4KFZMx5S	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5d8c948c-0b4d-4c99-acea-4c54b98aec97	Driver 125	driver125	driver125@example.com	+855969000125	$2b$12$/kd74AkAf7BT8DrfavpIP.ctpOsiI1hAIMXutM1j.BitPqkRgRC0q	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4cfad403-375a-4f4b-98b4-ef6fea770c22	Driver 126	driver126	driver126@example.com	+855969000126	$2b$12$8lst5rnw/Luh3bY3uTtnP.ZWDUFq6MaNgpxhawa1rVcbWA1QN2rRS	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+fcdb501e-043f-423e-8a00-a31cd045a5a7	Driver 127	driver127	driver127@example.com	+855969000127	$2b$12$lkF/zarw6x/aCg2HE9Ic8eeDVghNUpM2FgpNQLoj/Oa7RsouzaHfi	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+835733c2-ea35-48bf-95ca-92b1851ea30e	Driver 128	driver128	driver128@example.com	+855969000128	$2b$12$ybi4ncE8kg5OLt0n8PWF1.0F7m8YY14SSZFcKH8PXb4W/dajSNqEa	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+9d0eae0f-58aa-44e0-8ba8-3ed68363ffc9	Driver 129	driver129	driver129@example.com	+855969000129	$2b$12$73RCGsXEKyEkGEXVh1gN5uvr/v0BBrJa6fsxXpZ7nyi1qjn8uN3MK	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+a2e70a78-d567-463b-9ecc-8d637797d19f	Driver 130	driver130	driver130@example.com	+855969000130	$2b$12$y0Z0G8Ytb17tYAiHHRYvzuroDt2ZqyAlulsV8DHtsUsH/En1nXvpu	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+7f757855-3a38-4b39-bc75-4cf6445c4912	Driver 131	driver131	driver131@example.com	+855969000131	$2b$12$osUaXYyEtk8AtrY9IYHws.O4lFMK3DTqfoPLjLVnljVODmKDhoIIy	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+46162c6b-8f13-4083-9a3f-0e19c18ee23e	Driver 132	driver132	driver132@example.com	+855969000132	$2b$12$yZla4ftZx8.1M/X0vE45POVpkX6kKrk/I9p/gDJ0.4SWpog7nC8ZC	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6217299b-e333-4da5-a519-0ccf932b959b	Driver 133	driver133	driver133@example.com	+855969000133	$2b$12$2ImuctQsrbJCMyafMkXzFeQAYNfgo.XuHQZ0gW320EzK8JabnON2O	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+869a3017-f43a-4937-bcc6-f6f5b4d41f7d	Driver 134	driver134	driver134@example.com	+855969000134	$2b$12$XE3i3529ZYxQheo/W1l85eY17EG9ktde1fXndU82NwAWFg0fou4fi	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+cf9b75bb-a7a8-41be-9af8-38c719bd64e6	Driver 135	driver135	driver135@example.com	+855969000135	$2b$12$UzltfwtQicm/RKZYja99zuEzryxXKf7tFMDIL4xWmDU3KryuTGvJe	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+fbecfc1e-ea0f-488a-ac89-dcf890ac4f13	Driver 136	driver136	driver136@example.com	+855969000136	$2b$12$zkdFgRbh7hqbvqgqh2HIGeCSVDqYGrOLJ1rsKWLdrkBBOC1JCT1kS	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+362d3aad-c8ba-40b3-a33b-84c8a18581c3	Driver 137	driver137	driver137@example.com	+855969000137	$2b$12$NUML6pRKb4GNXnkVXjkhZOwcfrusPlJrDop2qmsrdY28.PFUzvrbS	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d30e5db7-7d8f-43f1-abbd-4e6a1a49c008	Driver 138	driver138	driver138@example.com	+855969000138	$2b$12$4k02hIyEB55I8zSw3NYxK.jaFnTr8NEkARv0ceddun7unpYN.ay2C	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f0831d36-71a6-49d9-a33d-3e54eec76b5e	Driver 139	driver139	driver139@example.com	+855969000139	$2b$12$0PB29mTW1EsbdYLq6/.UnOM3Yuom89sP87YT3kjkRUqramxjFu3cS	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+11e21f8b-d4fd-453a-8a11-5885a9f055b3	Driver 140	driver140	driver140@example.com	+855969000140	$2b$12$xZX6uGG/TdqJVAChkfxTBuOabBgjTSJF5xLVwVhfchUeLViD7eUNK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+74b86b50-59e4-4a90-82a5-2a7b59c32b91	Driver 141	driver141	driver141@example.com	+855969000141	$2b$12$qwVe.s4gPmW6yC9Azl5ElO4MkT0tVF.3XHaVeSQmKTo0gJXJx0afm	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d3eaaeb7-9000-4590-bc74-202d562aa0c5	Driver 142	driver142	driver142@example.com	+855969000142	$2b$12$1Zanh.z8Io8Zs668OfQ45eWMfkZywXTXUewFOeu3kn2UVjWSVy4/a	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+9956ad66-2e8a-435d-b205-5ab164785ff5	Driver 143	driver143	driver143@example.com	+855969000143	$2b$12$GrZKCP6a2fcEo.sjq5oKpO39./nWZvugqNrHbQBBE08qRMZrossum	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d42a9666-b334-4af1-a5b5-16db8d540045	Driver 144	driver144	driver144@example.com	+855969000144	$2b$12$K8QAxS6t1LorNAN04/E3wuSid15NvIj1zfg8LO.iQuedBZqEmEYJa	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5b3b363d-92df-489f-881d-5d63d534d138	Driver 145	driver145	driver145@example.com	+855969000145	$2b$12$8Pe/o.qhiY09d43vj8opbum2n0Fd5MCRuu8P7V9pTObsq1dEJrjTG	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+dd7b66c8-9987-4990-8938-3b4777ebcd2d	Driver 146	driver146	driver146@example.com	+855969000146	$2b$12$xC0x6kY3qAG0zNwkqXxwBOigmmhMh7SARGUq5kGssIYzlwdKvy74C	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+018cd357-8737-46a8-906b-a2720bb9f0a1	Driver 147	driver147	driver147@example.com	+855969000147	$2b$12$IlFv9rJYFKH0UgwdFXt07.iIE5cMtiQeHDIJY8RVROwyx2oIEEWJK	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+3121660e-4e8b-4059-8883-aec0bfa6d7ed	Driver 148	driver148	driver148@example.com	+855969000148	$2b$12$APxFHq0/WjOUwUZq5GbRkek2JMgXDXVab3gcl4HEYRdU6g/TMgf1S	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+167d9d5b-b8a8-4a74-ae94-5221ea332cc6	Driver 149	driver149	driver149@example.com	+855969000149	$2b$12$Ibb6BtjwZh4jWvYa5Of5buEgyntrYu7qotaXbOVCi1w3oXMYXcnyW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+0e0fc26c-2512-42e3-8202-35ba2508c685	Driver 150	driver150	driver150@example.com	+855969000150	$2b$12$7H9BfrarOoU4w2j6s0qo1OoxXOlxwCIcEzkWLDYzTkEjGzrkIgSbS	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+996e4a75-943e-4878-a424-78a7c84fd1ae	Driver 151	driver151	driver151@example.com	+855969000151	$2b$12$hH3Z7v6TOWv5wHsrQu2LwemIkuvI/0Dnkxbwwsl.bIDum3927KKGy	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d8f9ea4d-6fff-420a-ba98-e3b7da4354c7	Driver 152	driver152	driver152@example.com	+855969000152	$2b$12$sqZKSsLA.20aBr6Pw36eC.w7Yiu2BFP/dyr.2Dyvarph61M..O.eO	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+df72ae7d-5f40-4a62-afb0-b067f155aca5	Driver 153	driver153	driver153@example.com	+855969000153	$2b$12$/KXi2SEwtLRqkhCz6VnSluOFILyP7XpZ97VJ0YECyLx6/JzjFXoiK	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+d5cd4420-d62a-4616-8d72-df90b0d3a9c2	Driver 154	driver154	driver154@example.com	+855969000154	$2b$12$Qhw0L3qxzAUSbqhmKEsH4OPTp5L0FGBp2f01IshUSUkr6phACzN46	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6ff7bfae-a2d3-46ad-8690-446aeafaae4a	Driver 155	driver155	driver155@example.com	+855969000155	$2b$12$zi2Yqc8dVMu0zmBnoJ5o5.GRAPEhWicJCH4ieyF8ombRfOyRbLMDa	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+573531ac-e9df-4d2b-a656-f71fe54c8dae	Driver 156	driver156	driver156@example.com	+855969000156	$2b$12$z3fNwFoA0DRa1TjzydERj.iL09.eV2EOtKB8pZS.9YzLKvHkCI04S	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+3bc51889-fb38-4931-907a-8a435fc5538f	Driver 157	driver157	driver157@example.com	+855969000157	$2b$12$vwk7qDvp25GJeWxTsGJNSeEUddlEdEioNrS2wCg/u5bWZiyMB1TLu	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+8a1b0456-29bd-48b1-abee-e2ab66f8a60d	Driver 158	driver158	driver158@example.com	+855969000158	$2b$12$quG05XgFZoF9J7mPg7PKIOdQ4M77ZEr2KxicaaUm6VlspLWDbFHQK	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+244c9da4-8c7a-4583-b0d2-a49295a1d852	Driver 159	driver159	driver159@example.com	+855969000159	$2b$12$RSjwnjBVtQ8mk3Fj/S.9Gez5w9gCYsnXpUOiWOQrQrZgT/Rjh3TAi	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+20bd040a-2cd5-40aa-bfd3-47eae1b81e0a	Driver 160	driver160	driver160@example.com	+855969000160	$2b$12$l6Eqv0a5HNKSWsPj4MDGXem34PuOoqAE8AGqpLA8rkTq4RmHOzbIm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+a680cf29-0bdc-455e-8c91-d1a9d4e05e1e	Driver 161	driver161	driver161@example.com	+855969000161	$2b$12$XW8ouLh8.MKLNVsubhQvnee8fLYT3V/9obl5ENurC49ANkLayHGf.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+96705b1d-87bd-44ea-bbb4-2239cde38395	Driver 162	driver162	driver162@example.com	+855969000162	$2b$12$3WideLL0P1g.ewclrjYGzebyrS7wqb2x4aYetCCvqfqbxKk.AZLxK	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+53ad38df-3ec1-4a08-b4a7-09be6835c48a	Driver 163	driver163	driver163@example.com	+855969000163	$2b$12$XK/L4NI4FQVx/W5uLXluw.2pR7YdwG6ikgbdGQPXVnua.vXHGRxL.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5a8bc237-7ec3-45e5-8819-9bb2479caa11	Driver 164	driver164	driver164@example.com	+855969000164	$2b$12$YRSDaJ8bc9Er6N4E1fwMdOsIxSDYGi1QfCpsg4RMUFDhXj5/A0mpm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+04ced6c0-304b-4d30-af18-c9247d2c79b3	Driver 165	driver165	driver165@example.com	+855969000165	$2b$12$ICaZGu1RuwivkLBj468yv.Ow23ZFcm7d4OBdsston4JdDd2RxLwDe	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4e1e77a2-3cbc-4513-adab-8007e733ff71	Driver 166	driver166	driver166@example.com	+855969000166	$2b$12$MGNr7LcUs0za58VjNgtXxeL6MbywzfiAXc77Sswj6NpNNoKD7sCV6	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+691fab22-4a0f-4f49-a8fd-215dc765e46a	Driver 167	driver167	driver167@example.com	+855969000167	$2b$12$B6YVSAklupL/Bf4VTmHs1euUuPUVTwa3ww.AWo3lS/PIHuvHpdZja	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+735e12bc-e466-49c2-922d-e0aaae434a4f	Driver 168	driver168	driver168@example.com	+855969000168	$2b$12$FEeI146imTQKDXS0svAChevsr.yZSPzPng9YSmW4NxX7xOLLx/4LO	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+c9caf0bc-53bc-4508-a2de-1f3081c32bba	Driver 169	driver169	driver169@example.com	+855969000169	$2b$12$b0M/qDncqwldwv8pIJtc0Olae0OShY34zYGjbkHq3GMRwUaNxCEBe	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b56aef33-89a6-4855-9935-0f8d3c839053	Driver 170	driver170	driver170@example.com	+855969000170	$2b$12$ktoxb3qzezsBh5nixiDzueX211XN8z3s7jkPGqSJ8jtAb9YJXEr1i	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+494ecae7-35fb-4548-8b6f-ec958520cdd9	Driver 171	driver171	driver171@example.com	+855969000171	$2b$12$RcysTNrwp9pLLz0W4w6wpeZNjSCYhws.RE8Zo8XyPnvMkazhAyC86	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+48227f65-355c-444b-8ff6-58c40969ec2b	Driver 172	driver172	driver172@example.com	+855969000172	$2b$12$oFj2NFVeta5IS1imPStT/updL3FV9Cp86bi1j6w5iwcBo6GCgqoye	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+066a7b6f-ee9e-4a9f-b4de-632def38dcb9	Driver 173	driver173	driver173@example.com	+855969000173	$2b$12$kJF5WGrVZVF.qeoxGySRH.t3GB/N8dyD/zupuk4hiRawIE.P/4si.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+883029ac-a92b-449a-8523-94abc6b8d2ef	Driver 174	driver174	driver174@example.com	+855969000174	$2b$12$P5m9rncaqznVuk1IaosvdOWyHiXcpi4rzuKlegRYPlMD181iK6eQa	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+8e0e9779-243e-449e-a430-88810a5fcbc9	Driver 175	driver175	driver175@example.com	+855969000175	$2b$12$GRWfzA9riZI8I/JyaiAJWOIEdY33rN70L932cyy4sQSfnlNczVc5.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5596aa47-ae83-4fe8-9d8f-460794581354	Driver 176	driver176	driver176@example.com	+855969000176	$2b$12$90eSi31k3qK1jIDOZ.EE5Ow6txJHQ.t7A8j5lpSvRTHO0DYZHOZDW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+1316382f-ce35-4606-ba8d-dee862c4c2da	Driver 177	driver177	driver177@example.com	+855969000177	$2b$12$NJqcTTrxz/2E0ZClgoVOT.xE4ykhtG4ZlmYbBK.stnRvt8rttngIq	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5a14d97c-6562-4d09-b05a-e06762e9f48d	Driver 178	driver178	driver178@example.com	+855969000178	$2b$12$AmwOSPVV/aiWpjBxfF4VR.wpPecg3WBKymCc3MJeziYl3QJfsc63S	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+e34554d4-fb1f-45f1-9e28-92191f2ddfb2	Driver 179	driver179	driver179@example.com	+855969000179	$2b$12$4SVN.H4WAcbavCOn2ocCF.RKAg/4zCRyhJ6TljGt6GXp6KGASypZa	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+4271b252-86b8-4b6d-a0cf-59558e61f01b	Driver 180	driver180	driver180@example.com	+855969000180	$2b$12$ZbtCV1yZ5Im6p4iwf4JJauIYWyN09dK8hSByQRQbRXCvWqfTulMia	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+cb380e01-1de5-4846-8ddf-6eb01b5e2640	Driver 181	driver181	driver181@example.com	+855969000181	$2b$12$FbGl.FSZft0HG1tHXih0gO1IAFdEKhnUPixzil/WZF0G/T4lZGEcG	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+a36c61e9-3919-443a-ad81-139dc3088a42	Driver 182	driver182	driver182@example.com	+855969000182	$2b$12$x8WnT.P7CPEUcrmwBQm5V..Y.2Q5xc8oOXq9t2xDJkOTgOLFp4ygm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6caa2d91-1274-453d-a054-b355b8304991	Driver 183	driver183	driver183@example.com	+855969000183	$2b$12$72ZMsiBiJqSh3U5dqt4M5e.TPLIZPBV3aVBmIJzg6h7lJqtjxDOm.	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+91139f6f-27e0-4b5b-92fd-b552a9ff7b90	Driver 184	driver184	driver184@example.com	+855969000184	$2b$12$sJpTgGjcV27OJsNsPKsABuULpTNvsbp.EgwzKLD..GzRm7JfU8zzO	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+c35cea42-827a-4880-ac22-e350eb317189	Driver 185	driver185	driver185@example.com	+855969000185	$2b$12$AnHTy.fS3GLjNNTuWxqwOODafcqh6jYwfNbgkPuHS2Rxos9K8fEHW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f4003d27-8c4f-47ed-8455-8aad6b185d22	Driver 186	driver186	driver186@example.com	+855969000186	$2b$12$he16MUb36UpBTZqSau3lF.Cu45uzAupdyaIiJtnl0RoNGI3fJ5pLC	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+44963190-e351-46a6-8930-3353ad3c3b29	Driver 187	driver187	driver187@example.com	+855969000187	$2b$12$ICucWWmWWz2b5Rb1KVVZcecJQj9.7m..03dP.OmmKltqUoVI67ZWG	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+5d6cd6d6-c045-4fb8-9eec-1cb40e77ff3f	Driver 188	driver188	driver188@example.com	+855969000188	$2b$12$Zh56pVldQW5Hg/2MTeh3I.fHo9BaDHwrEP258dDrXulmAgG4oy4Lm	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+0cfce139-60f4-49cb-acc8-ccbc0fc9f7ed	Driver 189	driver189	driver189@example.com	+855969000189	$2b$12$NWGEsaNRtDmtuo6lk.YXTulCevkR/x1QRg0WumPyyM1gyGPyXZCIO	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+33f9c4bf-b126-4ff1-98a5-748fb25c6ae8	Driver 190	driver190	driver190@example.com	+855969000190	$2b$12$p2HMO/Yk5jdK5fdpDu1eMuFZvcuJUFY2K6Lt85Q/BbkP93/hZAGSS	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+6cbd9039-9bae-4f6f-b567-0179dcb44600	Driver 191	driver191	driver191@example.com	+855969000191	$2b$12$aGbgDn0A5BR5A9va0t7mkeQaX4mAvOj6GhIHfnRmle3CQ7sg9C67a	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+9d1d111b-57a6-474f-ad32-89cb6472d7bc	Driver 192	driver192	driver192@example.com	+855969000192	$2b$12$U5GhFtb0We5rwunEAxOdbuB5FnitXu/Sz1IwXnIDLXhQ1ifv8BZyu	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+77d6c817-f787-471f-b7d7-5947e541aee8	Driver 193	driver193	driver193@example.com	+855969000193	$2b$12$fuSSHNkQqZ8cpHbX.DD06.nOQGiEg9.17MfcvahqE3jgpZjmfNeYW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+ed12266b-1814-4525-8d1c-38af96250dd1	Driver 194	driver194	driver194@example.com	+855969000194	$2b$12$zpzbL6dQHHoGLnuoFBv6AuNFr53nHGPUzdz3d7HCb.M/cMLWX/hV.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+1250f4c2-5cfb-4d35-9438-666984197a1c	Driver 195	driver195	driver195@example.com	+855969000195	$2b$12$ZLrXMV.EGlczlcNX5cxZt.tiB2Ms6JXmX74Z8Sc7TLZqn093SApqy	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+70d81a62-f323-4d40-bec1-07c02a6a51e0	Driver 196	driver196	driver196@example.com	+855969000196	$2b$12$unPrihvm6PZOogWl5kQrKeAa5FSv82zg/4bQtamED3cNqY0CuQiD.	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+035d61d5-b57e-4617-8705-78439031be6c	Driver 197	driver197	driver197@example.com	+855969000197	$2b$12$P1CjBj6k8eU6V/u2G0YBXuk.BgF6pLL6BLvy0Ol.o9pV77NOwIy3e	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+2eddd1b5-abf2-415e-8128-4d3471fba618	Driver 198	driver198	driver198@example.com	+855969000198	$2b$12$Ucrqd/uIJQiwfudmvZLKMOqLKny9Ji38diCnrzDKVJPeyoYDWL0la	DRIVER	INACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+b3f85e1d-a8e3-440e-9a3e-e23cdbb3e949	Driver 199	driver199	driver199@example.com	+855969000199	$2b$12$vEyWzxMXhE9q4OGUeyhxoeakYd.vDc.GOQYbp71m9w84if1u7p0ZW	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+f58d4d98-a208-48a8-9130-dbe5a0c5f53c	Driver 200	driver200	driver200@example.com	+855969000200	$2b$12$M3gfhkfY46Yxht2Bigs8uehWQk8q4riKt12QdwnEDoalbYoX9aYbe	DRIVER	ACTIVE	2026-03-08 11:14:24.773682+00	2026-03-08 11:14:24.773682+00
+7d0057e9-832a-4115-bb28-54c2725fd5c8	Lyheng	lyheng	lyheng@gmail.com	09444444	$2b$12$AJN0mhvN2OwiI/gaQ3ar.OvGfTzuxrT6DwxplOsnmwRhhbCoOLVM.	MERCHANT	ACTIVE	2026-03-08 11:16:39.663427+00	2026-03-08 11:16:39.663438+00
+2728b82b-fd4c-4690-87f0-806c5d492035	Heng	heng	heng@gmail.com	096999000	$2b$12$WlMOp7qACznU2acoD2f22Oyra3iIp6mngOOzxrAKUs1X4OjlXoPLa	CUSTOMER	ACTIVE	2026-03-15 11:54:23.67834+00	2026-03-15 11:54:23.678352+00
+\.
+
+
+--
+-- Name: laundry_services_id_seq; Type: SEQUENCE SET; Schema: public; Owner: smart_laundry
+--
+
+SELECT pg_catalog.setval('public.laundry_services_id_seq', 3, true);
+
+
+--
+-- Name: alembic_version alembic_version_pkc; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.alembic_version
+    ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
+
+
+--
+-- Name: business_services business_services_pkey; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.business_services
+    ADD CONSTRAINT business_services_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: drivers drivers_pkey; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.drivers
+    ADD CONSTRAINT drivers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: laundry_businesses laundry_businesses_pkey; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.laundry_businesses
+    ADD CONSTRAINT laundry_businesses_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: laundry_services laundry_services_code_key; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.laundry_services
+    ADD CONSTRAINT laundry_services_code_key UNIQUE (code);
+
+
+--
+-- Name: laundry_services laundry_services_description_key; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.laundry_services
+    ADD CONSTRAINT laundry_services_description_key UNIQUE (description);
+
+
+--
+-- Name: laundry_services laundry_services_name_key; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.laundry_services
+    ADD CONSTRAINT laundry_services_name_key UNIQUE (name);
+
+
+--
+-- Name: laundry_services laundry_services_pkey; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.laundry_services
+    ADD CONSTRAINT laundry_services_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: order_items order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.order_items
+    ADD CONSTRAINT order_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders orders_pkey; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users users_phone_key; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_phone_key UNIQUE (phone);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ix_business_services_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_business_services_id ON public.business_services USING btree (id);
+
+
+--
+-- Name: ix_drivers_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_drivers_id ON public.drivers USING btree (id);
+
+
+--
+-- Name: ix_order_items_business_service_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_order_items_business_service_id ON public.order_items USING btree (business_service_id);
+
+
+--
+-- Name: ix_order_items_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_order_items_id ON public.order_items USING btree (id);
+
+
+--
+-- Name: ix_order_items_order_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_order_items_order_id ON public.order_items USING btree (order_id);
+
+
+--
+-- Name: ix_orders_business_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_orders_business_id ON public.orders USING btree (business_id);
+
+
+--
+-- Name: ix_orders_customer_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_orders_customer_id ON public.orders USING btree (customer_id);
+
+
+--
+-- Name: ix_orders_driver_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_orders_driver_id ON public.orders USING btree (driver_id);
+
+
+--
+-- Name: ix_orders_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_orders_id ON public.orders USING btree (id);
+
+
+--
+-- Name: ix_orders_order_no; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE UNIQUE INDEX ix_orders_order_no ON public.orders USING btree (order_no);
+
+
+--
+-- Name: ix_orders_status; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_orders_status ON public.orders USING btree (status);
+
+
+--
+-- Name: ix_users_id; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_users_id ON public.users USING btree (id);
+
+
+--
+-- Name: ix_users_status; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE INDEX ix_users_status ON public.users USING btree (status);
+
+
+--
+-- Name: ix_users_user_name; Type: INDEX; Schema: public; Owner: smart_laundry
+--
+
+CREATE UNIQUE INDEX ix_users_user_name ON public.users USING btree (user_name);
+
+
+--
+-- Name: business_services business_services_business_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.business_services
+    ADD CONSTRAINT business_services_business_id_fkey FOREIGN KEY (business_id) REFERENCES public.laundry_businesses(id);
+
+
+--
+-- Name: business_services business_services_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.business_services
+    ADD CONSTRAINT business_services_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.laundry_services(id);
+
+
+--
+-- Name: drivers drivers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.drivers
+    ADD CONSTRAINT drivers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: laundry_businesses laundry_businesses_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.laundry_businesses
+    ADD CONSTRAINT laundry_businesses_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
+
+
+--
+-- Name: order_items order_items_business_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.order_items
+    ADD CONSTRAINT order_items_business_service_id_fkey FOREIGN KEY (business_service_id) REFERENCES public.business_services(id);
+
+
+--
+-- Name: order_items order_items_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.order_items
+    ADD CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE;
+
+
+--
+-- Name: order_items order_items_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.order_items
+    ADD CONSTRAINT order_items_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.laundry_services(id);
+
+
+--
+-- Name: orders orders_business_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_business_id_fkey FOREIGN KEY (business_id) REFERENCES public.laundry_businesses(id);
+
+
+--
+-- Name: orders orders_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.users(id);
+
+
+--
+-- Name: orders orders_driver_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: smart_laundry
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_driver_id_fkey FOREIGN KEY (driver_id) REFERENCES public.drivers(id);
+
+
+--
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: pg_database_owner
+--
+
+GRANT ALL ON SCHEMA public TO smart_laundry;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict lFWN7tdvWJw4uuXk5D7KyGVNsoxiHYj2qKBfXpbEBUprID7eO4EQH9fEdxX4Hkb
+
