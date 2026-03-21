@@ -35,7 +35,7 @@ run:
 	$(FAST) dev app/main.py
 
 backup: 
-	docker exec -t postgres-db pg_dump -U app_user -d smart_laundry > init/backup.sql
+	docker exec -t postgres-db pg_dumpall -U app_user > init/backup.sql
 
 test: 
 	$(PYTEST) 

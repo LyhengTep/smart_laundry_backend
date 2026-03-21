@@ -1,11 +1,224 @@
 --
+-- PostgreSQL database cluster dump
+--
+
+\restrict gta7O0ajpYBIYEnpAlkIrbMFBCiNAbRWdZLJLIrTYYplyDc7nKtnZbnfNpwZDhs
+
+SET default_transaction_read_only = off;
+
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+
+--
+-- Roles
+--
+
+CREATE ROLE app_user;
+ALTER ROLE app_user WITH SUPERUSER INHERIT CREATEROLE CREATEDB LOGIN REPLICATION BYPASSRLS PASSWORD 'SCRAM-SHA-256$4096:LJ8wTrBpzabXt8M1ysHclg==$mxSBlrkO3EEmeGZGSxjm46FwGOoQT3S4/BJoMkOyi1E=:f9+jUGvDKOoL51SeSQqDk2gRhcz0feUex+sXdplTJgc=';
+CREATE ROLE smart_laundry;
+ALTER ROLE smart_laundry WITH NOSUPERUSER INHERIT NOCREATEROLE NOCREATEDB LOGIN NOREPLICATION NOBYPASSRLS PASSWORD 'SCRAM-SHA-256$4096:GKWUUQ7GvZfy5yBX81UfOQ==$gFVJEDHkrBhGg1TVY6OkjW5A4a76unhHvCdX8Hb4vEI=:xY16/Kuqhg64QhQeBEv/trvj1d7N7ruA/GZ8DrJbYWc=';
+
+--
+-- User Configurations
+--
+
+
+
+
+
+
+
+
+\unrestrict gta7O0ajpYBIYEnpAlkIrbMFBCiNAbRWdZLJLIrTYYplyDc7nKtnZbnfNpwZDhs
+
+--
+-- Databases
+--
+
+--
+-- Database "template1" dump
+--
+
+\connect template1
+
+--
 -- PostgreSQL database dump
 --
 
-\restrict lFWN7tdvWJw4uuXk5D7KyGVNsoxiHYj2qKBfXpbEBUprID7eO4EQH9fEdxX4Hkb
+\restrict PouT2VfeUf39hxWMkMg22LFHKlPBnNith3Zx09EoDw3VtD9ciKtvobiF8Jgrs5T
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict PouT2VfeUf39hxWMkMg22LFHKlPBnNith3Zx09EoDw3VtD9ciKtvobiF8Jgrs5T
+
+--
+-- Database "app_db" dump
+--
+
+--
+-- PostgreSQL database dump
+--
+
+\restrict eAxDnhv1cmBQUOXH7nXSar6W35SZaOnFI4dSW66jxK9jsEwhf2ZhXGYekamUB8D
+
+-- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
+-- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: app_db; Type: DATABASE; Schema: -; Owner: app_user
+--
+
+CREATE DATABASE app_db WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = libc LOCALE = 'en_US.utf8';
+
+
+ALTER DATABASE app_db OWNER TO app_user;
+
+\unrestrict eAxDnhv1cmBQUOXH7nXSar6W35SZaOnFI4dSW66jxK9jsEwhf2ZhXGYekamUB8D
+\connect app_db
+\restrict eAxDnhv1cmBQUOXH7nXSar6W35SZaOnFI4dSW66jxK9jsEwhf2ZhXGYekamUB8D
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: princetype; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.princetype AS ENUM (
+    'PER_ITEM',
+    'PER_KG',
+    'FIXED'
+);
+
+
+ALTER TYPE public.princetype OWNER TO smart_laundry;
+
+--
+-- Name: shopstatus; Type: TYPE; Schema: public; Owner: smart_laundry
+--
+
+CREATE TYPE public.shopstatus AS ENUM (
+    'PENDING',
+    'APPROVED',
+    'OPEN',
+    'CLOSED',
+    'SUSPENDED',
+    'PENDING_DEACTIVATION',
+    'DEACTIVATED'
+);
+
+
+ALTER TYPE public.shopstatus OWNER TO smart_laundry;
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict eAxDnhv1cmBQUOXH7nXSar6W35SZaOnFI4dSW66jxK9jsEwhf2ZhXGYekamUB8D
+
+--
+-- Database "postgres" dump
+--
+
+\connect postgres
+
+--
+-- PostgreSQL database dump
+--
+
+\restrict xgLUJQ1SPJGwimU9kJafxYyOVnjD9GdGVLBQbj5SoiKJHgOUP7YPm7M8cqKnpOv
+
+-- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
+-- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict xgLUJQ1SPJGwimU9kJafxYyOVnjD9GdGVLBQbj5SoiKJHgOUP7YPm7M8cqKnpOv
+
+--
+-- Database "smart_laundry" dump
+--
+
+--
+-- PostgreSQL database dump
+--
+
+\restrict eXJkMhCJKFerjgT2M4dSyP0KtyXDc5WJwAhVc4g66ZnpEBIaOcqFvmMXa8Hj9p1
+
+-- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
+-- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: smart_laundry; Type: DATABASE; Schema: -; Owner: app_user
+--
+
+CREATE DATABASE smart_laundry WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = libc LOCALE = 'en_US.utf8';
+
+
+ALTER DATABASE smart_laundry OWNER TO app_user;
+
+\unrestrict eXJkMhCJKFerjgT2M4dSyP0KtyXDc5WJwAhVc4g66ZnpEBIaOcqFvmMXa8Hj9p1
+\connect smart_laundry
+\restrict eXJkMhCJKFerjgT2M4dSyP0KtyXDc5WJwAhVc4g66ZnpEBIaOcqFvmMXa8Hj9p1
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -1094,6 +1307,13 @@ ALTER TABLE ONLY public.orders
 
 
 --
+-- Name: DATABASE smart_laundry; Type: ACL; Schema: -; Owner: app_user
+--
+
+GRANT ALL ON DATABASE smart_laundry TO smart_laundry;
+
+
+--
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: pg_database_owner
 --
 
@@ -1104,5 +1324,9 @@ GRANT ALL ON SCHEMA public TO smart_laundry;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict lFWN7tdvWJw4uuXk5D7KyGVNsoxiHYj2qKBfXpbEBUprID7eO4EQH9fEdxX4Hkb
+\unrestrict eXJkMhCJKFerjgT2M4dSyP0KtyXDc5WJwAhVc4g66ZnpEBIaOcqFvmMXa8Hj9p1
+
+--
+-- PostgreSQL database cluster dump complete
+--
 
