@@ -13,6 +13,10 @@ from pathlib import Path
 from app.seeds.driver import seed_drivers
 from app.seeds.laundry_serivces import seed_laundry_service
 
+
+load_dotenv()  # Load environment variables from .env file
+
+
 logging.basicConfig(
     level=logging.INFO, 
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",

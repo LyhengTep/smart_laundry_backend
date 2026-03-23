@@ -1,10 +1,12 @@
 
 from collections.abc import AsyncGenerator
 
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.engine import URL
 from sqlmodel.ext.asyncio.session import AsyncSession
-
+import os
+load_dotenv()
 url = URL.create(
     drivername="postgresql+asyncpg",
     username="smart_laundry",
@@ -14,8 +16,8 @@ url = URL.create(
     database="smart_laundry",
 )
 
-
-engine = create_async_engine(url, echo=True)
+print("Database URL:",os.getenv("DATABASE_URL"))  # Debug print to check the URL being used
+engine = create_async_engine(os.getenv("DATABASE_URL"), echo=True)
 
 async_session = async_sessionmaker(
     engine,

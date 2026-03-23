@@ -14,7 +14,8 @@ PYTHONPATH=.
 
 up:
 	$(COMPOSE) up -d
-
+up-build:
+	$(COMPOSE) up -d --build
 down:
 	$(COMPOSE) down
 
@@ -48,3 +49,7 @@ downgrade:
 
 revision:
 	$(ALEMBIC) revision --autogenerate -m "$(m)"
+
+
+freeze:
+	pip freeze > requirements.txt
