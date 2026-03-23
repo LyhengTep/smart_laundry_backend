@@ -20,7 +20,7 @@ services:
       - ./init:/docker-entrypoint-initdb.d
   smart_laundry_backend:
     # build: .
-    platform: linux/amd64
+    # platform: linux/amd64
     container_name: smart-laundry-backend
     restart: unless-stopped
     image: lyheng/smartlaundry_backend:0.0.1-dev.3
