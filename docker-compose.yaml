@@ -44,7 +44,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      NEXT_PUBLIC_API_BASE_URL: http://smart_laundry_backend:8000/api/v1
+      NEXT_PUBLIC_API_BASE_URL: http://ec2-13-229-201-188.ap-southeast-1.compute.amazonaws.com:8000/api/v1
     restart: unless-stopped
 volumes:
   postgres_data:
