@@ -21,7 +21,7 @@ services:
     # build: .
     container_name: smart-laundry-backend
     restart: unless-stopped
-    image: lyheng/smartlaundry_backend:0.0.1-dev.1
+    image: lyheng/smartlaundry_backend:0.0.1-dev.2
     environment:
       ENV: DEV
       DATABASE_URL: postgresql+asyncpg://smart_laundry:p_JI7F7!|3x>@postgres:5432/smart_laundry
