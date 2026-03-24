@@ -38,6 +38,7 @@ app = FastAPI(lifespan=lifespan,title="Smart Laundry API")
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://ec2-13-229-201-188.ap-southeast-1.compute.amazonaws.com:3000",
 ]
 
 

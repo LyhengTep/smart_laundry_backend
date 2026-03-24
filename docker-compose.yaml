@@ -23,7 +23,7 @@ services:
     platform: linux/amd64
     container_name: smart-laundry-backend
     restart: unless-stopped
-    image: lyheng/smartlaundry_backend:0.0.1-dev.3
+    image: lyheng/smartlaundry_backend:0.0.1-dev.4
     environment:
       ENV: DEV
       DATABASE_URL: postgresql+asyncpg://smart_laundry:p_JI7F7!|3x>@postgres:5432/smart_laundry
