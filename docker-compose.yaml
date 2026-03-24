@@ -17,6 +17,7 @@ services:
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - uploads_data:/app/app/uploads
       - ./init:/docker-entrypoint-initdb.d
   smart_laundry_backend:
     build: .
@@ -37,7 +38,7 @@ services:
     depends_on:
       - postgres
   web: 
-    image: lyheng/smart-laundry-web:0.0.1-dev.1
+    image: lyheng/smart-laundry-web:0.0.1-dev.2
     platform: linux/amd64
     ports:
       - "3000:3000"
@@ -48,3 +49,4 @@ services:
     restart: unless-stopped
 volumes:
   postgres_data:
+  uploads_data: 
