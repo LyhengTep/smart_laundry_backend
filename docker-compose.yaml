@@ -44,6 +44,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.priority=100"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=myresolver"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -66,6 +67,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`smart-laundry.lyhengtep.com`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.backend.priority=10"
       - "traefik.http.routers.frontend.tls.certresolver=myresolver"
       - "traefik.http.services.backend.loadbalancer.server.port=3000"
     ports:
