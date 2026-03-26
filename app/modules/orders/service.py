@@ -252,6 +252,7 @@ async def update_order_status(
         statement= select(User).where(User.id==order.customer_id)
         res= await session.exec(statement)
         user= res.first()
+        print(f"user token is {user.msg_token}")
         if user is not None:
             send_firebase_message(
                 token=user.msg_token,
