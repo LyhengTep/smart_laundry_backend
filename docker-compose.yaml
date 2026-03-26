@@ -43,7 +43,7 @@ services:
     image: lyheng/smartlaundry_backend:0.0.1-dev.5
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`smart-launry.lyhengtep.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=myresolver"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -64,7 +64,7 @@ services:
     platform: linux/amd64
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`smart-launry.lyhengtep.com`)"
+      - "traefik.http.routers.frontend.rule=Host(`smart-laundry.lyhengtep.com`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls.certresolver=myresolver"
       - "traefik.http.services.backend.loadbalancer.server.port=3000"
