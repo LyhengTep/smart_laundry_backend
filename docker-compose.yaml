@@ -43,7 +43,7 @@ services:
     image: lyheng/smartlaundry_backend:0.0.1-dev.5
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`) && PathPrefix(`/public/uploads`)"
+      - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`) || PathPrefix(`/public/uploads`)"
       - "traefik.http.routers.backend.priority=100"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=myresolver"
