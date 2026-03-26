@@ -1,6 +1,21 @@
 version: "3.9"
-
 services:
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=lyhengtep168@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
   postgres:
     image: postgres:16
     platform: linux/amd64
@@ -24,7 +39,13 @@ services:
     platform: linux/amd64
     container_name: smart-laundry-backend
     restart: unless-stopped
-    image: lyheng/smartlaundry_backend:0.0.1-dev.4
+    image: lyheng/smartlaundry_backend:0.0.1-dev.5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`ec2-13-229-201-188.ap-southeast-1.compute.amazonaws.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=myresolver"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
     environment:
       ENV: DEV
       DATABASE_URL: postgresql+asyncpg://smart_laundry:p_JI7F7!|3x>@postgres:5432/smart_laundry
@@ -38,8 +59,14 @@ services:
     depends_on:
       - postgres
   web: 
-    image: lyheng/smart-laundry-web:0.0.1-dev.2
+    image: lyheng/smart-laundry-web:0.0.1-dev.3
     platform: linux/amd64
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`ec2-13-229-201-188.ap-southeast-1.compute.amazonaws.com`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.backend.loadbalancer.server.port=3000"
     ports:
       - "3000:3000"
     environment:

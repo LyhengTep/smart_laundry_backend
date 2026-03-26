@@ -35,6 +35,7 @@ class User(SQLModel, table=True):
     user_name: str = Field(sa_column=Column(String(60), nullable=False, unique=True, index=True))
     email: str = Field(sa_column=Column(String(255), nullable=False))
     phone: str | None = Field(default=None, sa_column=Column(String(30), unique=True, nullable=True))
+    msg_token: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
     password_hash: str = Field(sa_column=Column(Text, nullable=False))
 

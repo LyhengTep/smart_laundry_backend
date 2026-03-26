@@ -10,14 +10,21 @@ from app.shared.common import utc_now
 
 
 class OrderStatus(str, Enum):
-    PENDING = "PENDING"
-    ACCEPTED = "ACCEPTED"
-    PICKED_UP = "PICKED_UP"
-    DELIVERED_TO_SHOP = "DELIVERED_TO_SHOP"
-    WASHING = "WASHING"
-    READY_FOR_DELIVERY = "READY_FOR_DELIVERY"
-    OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY"
-    COMPLETED = "COMPLETED"
+    PENDING = "PENDING"                      # Order created, waiting for shop confirmation
+    CONFIRMED = "CONFIRMED"                  # Shop accepted order
+
+    PICKUP_ASSIGNED = "PICKUP_ASSIGNED"      # Driver assigned for pickup
+    OUT_FOR_PICKUP = "OUT_FOR_PICKUP"        # Driver on the way to customer
+    PICKED_UP = "PICKED_UP"                  # Clothes collected from customer
+    DELIVERED_TO_SHOP = "DELIVERED_TO_SHOP"  # Clothes delivered to shop
+
+    PROCESSING = "PROCESSING"                # Laundry in progress
+    READY_FOR_DELIVERY = "READY_FOR_DELIVERY" # Ready to deliver to customer
+
+    DELIVERY_ASSIGNED = "DELIVERY_ASSIGNED"  # Driver assigned for delivery
+    OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY"    # Driver on the way to customer
+    DELIVERED = "DELIVERED"                  # Final state
+
     CANCELLED = "CANCELLED"
 
 

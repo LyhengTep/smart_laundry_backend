@@ -4,3 +4,4 @@ from app.modules.drivers.models import Driver
 from app.modules.laundry_services.model import LaundryService
 from app.modules.business_services.model import BusinessService
 from app.modules.orders.models import Order, OrderItem
+from app.modules.notifications.models import Notification

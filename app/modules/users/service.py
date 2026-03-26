@@ -4,7 +4,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.exceptions.http import create_404
 from app.modules.users.models import User
-from app.modules.users.schema import UserRead, UserWrite
+from app.modules.users.schema import UserMsgTokenUpdate, UserRead, UserWrite
 from app.shared.passwords import hash_password
 import logging
 
@@ -50,3 +50,19 @@ async def delete_user(user_id:str, session: AsyncSession) -> bool:
         return True
     except Exception as e:    
         return False
+
+
+async def update_user_msg_token(
+    user_id: UUID,
+    data: UserMsgTokenUpdate,
+    session: AsyncSession,
+) -> UserRead:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise create_404("User not found")
+
+    user.msg_token = data.msg_token
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user

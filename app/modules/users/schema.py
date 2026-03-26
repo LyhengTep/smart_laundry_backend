@@ -27,8 +27,13 @@ class UserWrite(SQLModel):
     password: str
     email: str
     phone: str | None
+    msg_token: str | None = None
     role: RoleName
 
 
 class UserEdit(UserWrite):
     status: UserStatus
+
+
+class UserMsgTokenUpdate(SQLModel):
+    msg_token: str | None = None

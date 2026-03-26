@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from sqlmodel import Session
 from starlette.staticfiles import StaticFiles
 from app.db import engine
+from app.core.firebase import initialize_firebase
 from app.db.init_db import init_db
 from app.api.v1.router import api_router
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,7 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    initialize_firebase()
     await init_db()
     if os.getenv("ENV") == "DEV":
         async with engine.async_session() as session:

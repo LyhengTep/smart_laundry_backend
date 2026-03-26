@@ -87,13 +87,13 @@ def test_build_order_items_rejects_duplicate_business_service() -> None:
 
 def test_validate_status_transition_rejects_skipped_state() -> None:
     with pytest.raises(HTTPException) as exc:
-        validate_status_transition(OrderStatus.PENDING, OrderStatus.WASHING)
+        validate_status_transition(OrderStatus.PENDING, OrderStatus.PROCESSING)
 
     assert exc.value.status_code == 400
 
 
 def test_validate_status_transition_allows_next_step() -> None:
-    validate_status_transition(OrderStatus.READY_FOR_DELIVERY, OrderStatus.OUT_FOR_DELIVERY)
+    validate_status_transition(OrderStatus.READY_FOR_DELIVERY, OrderStatus.DELIVERY_ASSIGNED)
 
 
 def test_generate_order_no_has_expected_prefix() -> None:

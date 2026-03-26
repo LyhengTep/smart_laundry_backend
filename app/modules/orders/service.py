@@ -8,6 +8,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import func
 from app.api.reponse_model import Page
+from app.core.firebase import send_firebase_message
 from app.exceptions.http import create_400, create_404
 from app.modules.business_services.model import BusinessService
 from app.modules.businesses.models import LaundryBusiness
@@ -24,14 +25,17 @@ from app.shared.common import utc_now
 
 
 ORDER_STATUS_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
-    OrderStatus.PENDING: {OrderStatus.ACCEPTED, OrderStatus.CANCELLED},
-    OrderStatus.ACCEPTED: {OrderStatus.PICKED_UP, OrderStatus.CANCELLED},
+    OrderStatus.PENDING: {OrderStatus.CONFIRMED, OrderStatus.CANCELLED},
+    OrderStatus.CONFIRMED: {OrderStatus.PICKUP_ASSIGNED, OrderStatus.CANCELLED},
+    OrderStatus.PICKUP_ASSIGNED: {OrderStatus.OUT_FOR_PICKUP, OrderStatus.CANCELLED},
+    OrderStatus.OUT_FOR_PICKUP: {OrderStatus.PICKED_UP, OrderStatus.CANCELLED},
     OrderStatus.PICKED_UP: {OrderStatus.DELIVERED_TO_SHOP},
-    OrderStatus.DELIVERED_TO_SHOP: {OrderStatus.WASHING},
-    OrderStatus.WASHING: {OrderStatus.READY_FOR_DELIVERY},
-    OrderStatus.READY_FOR_DELIVERY: {OrderStatus.OUT_FOR_DELIVERY},
-    OrderStatus.OUT_FOR_DELIVERY: {OrderStatus.COMPLETED},
-    OrderStatus.COMPLETED: set(),
+    OrderStatus.DELIVERED_TO_SHOP: {OrderStatus.PROCESSING},
+    OrderStatus.PROCESSING: {OrderStatus.READY_FOR_DELIVERY},
+    OrderStatus.READY_FOR_DELIVERY: {OrderStatus.DELIVERY_ASSIGNED},
+    OrderStatus.DELIVERY_ASSIGNED: {OrderStatus.OUT_FOR_DELIVERY},
+    OrderStatus.OUT_FOR_DELIVERY: {OrderStatus.DELIVERED},
+    OrderStatus.DELIVERED: set(),
     OrderStatus.CANCELLED: set(),
 }
 
@@ -238,11 +242,22 @@ async def update_order_status(
 
     if data.driver_id is not None:
         order.driver_id = data.driver_id
+
     order.status = data.status
     order.updated_at = utc_now()
 
     session.add(order)
     await session.commit()
+    if data.status== OrderStatus.CANCELLED:
+        statement= select(User).where(User.id==order.customer_id)
+        res= await session.exec(statement)
+        user= res.first()
+        if user is not None:
+            send_firebase_message(
+                token=user.msg_token,
+                title=f"Order Cancelled",
+                body=f"Your order no {order.order_no} was cancelled"
+            )
     return await get_order_by_id(order_id=order_id, session=session)
 
 
@@ -252,7 +267,7 @@ async def update_order_pricing(
     session: AsyncSession,
 ) -> OrderRead:
     order = await get_order_by_id(order_id=order_id, session=session)
-    if order.status in {OrderStatus.CANCELLED, OrderStatus.COMPLETED}:
+    if order.status in {OrderStatus.CANCELLED, OrderStatus.DELIVERED}:
         raise create_400("Cannot update pricing for a completed or cancelled order")
     if order.status != OrderStatus.DELIVERED_TO_SHOP:
         raise create_400("Order item weight can only be updated after delivery to the shop")

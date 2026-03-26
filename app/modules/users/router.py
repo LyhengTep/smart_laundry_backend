@@ -4,7 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.engine import get_session
 from app.modules.users import service as svc
-from app.modules.users.schema import UserRead, UserWrite
+from app.modules.users.schema import UserMsgTokenUpdate, UserRead, UserWrite
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -28,3 +28,12 @@ async def create_users(data:UserWrite,session: AsyncSession = Depends(get_sessio
 @router.delete("/{user_id}")
 async def delete_user(user_id: UUID,session: AsyncSession = Depends(get_session))->bool: 
     return await svc.delete_user(user_id,session)
+
+
+@router.patch("/{user_id}/msg-token")
+async def update_user_msg_token(
+    user_id: UUID,
+    data: UserMsgTokenUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> UserRead:
+    return await svc.update_user_msg_token(user_id=user_id, data=data, session=session)

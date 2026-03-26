@@ -18,6 +18,7 @@ def build_user() -> User:
         user_name="authuser",
         email="auth@example.com",
         phone=None,
+        msg_token=None,
         password_hash="hashed",
         role=RoleName.CUSTOMER,
         status=UserStatus.ACTIVE,
@@ -40,6 +41,26 @@ def test_login_returns_token(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert response.token == f"token::{user.id}"
     assert response.user_name == user.user_name
+
+
+def test_login_updates_msg_token_when_provided(monkeypatch: pytest.MonkeyPatch) -> None:
+    user = build_user()
+    session = FakeAsyncSession(exec_results=[user])
+    monkeypatch.setattr(auth_service, "create_access_token", lambda user_id: f"token::{user_id}")
+
+    response = run_async(
+        auth_service.login(
+            LoginRequest(
+                login=user.user_name,
+                password="secret",
+                role=RoleName.CUSTOMER,
+            ),
+            session,
+        )
+    )
+
+    assert user.msg_token is None
+    assert session.commits == 0
 
 
 def test_login_raises_not_found_for_missing_user() -> None:

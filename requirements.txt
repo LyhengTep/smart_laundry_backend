@@ -26,6 +26,7 @@ fastapi-cloud-cli==0.8.0
 fastar==0.8.0
 filelock==3.25.2
 filetype==1.2.0
+firebase-admin==7.1.0
 greenlet==3.3.0
 h11==0.16.0
 html5lib==1.1
