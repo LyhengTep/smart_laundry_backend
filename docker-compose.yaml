@@ -48,6 +48,8 @@ services:
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=myresolver"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.https-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.backend.middlewares=https-headers"
     environment:
       ENV: DEV
       DATABASE_URL: postgresql+asyncpg://smart_laundry:p_JI7F7!|3x>@postgres:5432/smart_laundry
