@@ -57,7 +57,7 @@ services:
       FIREBASE_CREDENTIALS_PATH: /app/app/firebaseServiceAccount.json
       DB_INIT_STRATEGY: create_all
     volumes:
-      - ./firebaseServiceAccount.json:/app/app/
+      - ./firebaseServiceAccount.json:/app/app
     ports:
       - "8000:8000"
 
