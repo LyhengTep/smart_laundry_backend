@@ -54,7 +54,7 @@ services:
       ENV: DEV
       DATABASE_URL: postgresql+asyncpg://smart_laundry:p_JI7F7!|3x>@postgres:5432/smart_laundry
       SECRET_KEY: supersecret
-
+      FIREBASE_CREDENTIALS_PATH: /app/app/firebaseServiceAccount.json
       DB_INIT_STRATEGY: create_all
 
     ports:

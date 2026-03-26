@@ -42,6 +42,7 @@ origins = [
     "http://127.0.0.1:3000",
     "http://ec2-13-229-201-188.ap-southeast-1.compute.amazonaws.com:3000",
     "https://smart-laundry.lyhengtep.com"
+    "172.20.10.2:3000"
 ]
 
 
@@ -52,7 +53,8 @@ app.mount("/public/uploads", StaticFiles(directory=PUBLIC_DIR), name="public")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    # allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
