@@ -43,7 +43,7 @@ services:
     image: lyheng/smartlaundry_backend:0.0.1-dev.5
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`) && PathPrefix(`/public/uploads`)"
       - "traefik.http.routers.backend.priority=100"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=myresolver"
@@ -61,7 +61,7 @@ services:
     depends_on:
       - postgres
   web: 
-    image: lyheng/smart-laundry-web:0.0.1-dev.3
+    image: lyheng/smart-laundry-web:0.0.1-dev.4
     platform: linux/amd64
     labels:
       - "traefik.enable=true"
