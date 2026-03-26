@@ -72,6 +72,8 @@ services:
       - "traefik.http.routers.frontend.priority=10"
       - "traefik.http.routers.frontend.tls.certresolver=myresolver"
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.secure-headers.headers.customresponseheaders.Content-Security-Policy=upgrade-insecure-requests"
+      - "traefik.http.routers.frontend.middlewares=secure-headers"
     ports:
       - "3000:3000"
     environment:
