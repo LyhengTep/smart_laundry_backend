@@ -3,14 +3,15 @@
 
 from sqlmodel import SQLModel
 
-from app.modules.users.models import RoleName
 from app.modules.users.schema import UserRead, UserWrite
+from app.shared.common import RoleName
 
 
 class LoginRequest(SQLModel):
     login: str
     password: str
     role: RoleName
+    
 
 
 class LoginResponse(UserRead): 

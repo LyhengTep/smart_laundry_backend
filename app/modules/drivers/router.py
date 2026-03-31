@@ -5,7 +5,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.reponse_model import Page
 from app.db.engine import get_session
-from app.modules.drivers.schema import DriverRead, DriverWrite
+from app.modules.drivers.models import DARole, DAStatus
+from app.modules.drivers.schema import (
+    DriverAssignmentCreate,
+    DriverAssignmentRead,
+    DriverAssignmentStatusUpdate,
+    DriverRead,
+    DriverWrite,
+)
 from app.modules.drivers import service as svc
 from app.modules.users.models import UserStatus
 from app.modules.users.schema import UserRead, UserWrite
@@ -18,6 +25,68 @@ async def list_drivers(page: int =Query(1,ge=1),size: int=Query(10,ge=1,le=100),
                        session: AsyncSession = Depends(get_session))->list[DriverRead]:
 
     return await svc.list_drivers(session,page,size,status)
+
+
+@router.get("/assignments/", response_model=Page[DriverAssignmentRead])
+async def list_assignments(
+    driver_id: UUID | None = Query(default=None),
+    order_id: UUID | None = Query(default=None),
+    role: DARole | None = Query(default=None),
+    status: DAStatus | None = Query(default=None),
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+) -> Page[DriverAssignmentRead]:
+    return await svc.list_assignments(
+        session=session,
+        driver_id=driver_id,
+        order_id=order_id,
+        role=role,
+        status=status,
+        page=page,
+        size=size,
+    )
+
+
+@router.get("/assignments/{assignment_id}", response_model=DriverAssignmentRead)
+async def get_assignment(assignment_id: UUID, session: AsyncSession = Depends(get_session)) -> DriverAssignmentRead:
+    return await svc.get_assignment_by_id(session=session, assignment_id=assignment_id)
+
+
+@router.post("/assignments/", response_model=DriverAssignmentRead)
+async def create_assignment(
+    data: DriverAssignmentCreate,
+    session: AsyncSession = Depends(get_session),
+) -> DriverAssignmentRead:
+    return await svc.create_assignment_api(session=session, data=data)
+
+
+@router.patch("/assignments/{assignment_id}/accept", response_model=DriverAssignmentRead)
+async def accept_assignment(
+    assignment_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> DriverAssignmentRead:
+    return await svc.update_assignment_status(
+        session=session,
+        assignment_id=assignment_id,
+        data=DriverAssignmentStatusUpdate(status=DAStatus.ACCEPTED),
+    )
+
+
+@router.patch("/assignments/{assignment_id}/reject", response_model=DriverAssignmentRead)
+async def reject_assignment(
+    assignment_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> DriverAssignmentRead:
+    return await svc.update_assignment_status(
+        session=session,
+        assignment_id=assignment_id,
+        data=DriverAssignmentStatusUpdate(status=DAStatus.REJECTED),
+    )
+
+@router.get("/by-user/{user_id}", response_model=DriverRead)
+async def get_driver_by_user_id(user_id: UUID, session: AsyncSession = Depends(get_session)) -> DriverRead:
+    return await svc.get_driver_by_user_id(session=session, user_id=user_id)
 
 @router.get("/{driver_id}",response_model=DriverRead)
 async def list_one_driver(driver_id: UUID,session: AsyncSession = Depends(get_session))->DriverRead:

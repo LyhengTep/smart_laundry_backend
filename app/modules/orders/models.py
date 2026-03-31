@@ -1,11 +1,15 @@
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column, DateTime, Enum as SAEnum, Float, ForeignKey, String, Text
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.modules.business_services.model import PriceType
+if TYPE_CHECKING:
+    from app.modules.drivers.models import DriverAssignment
+
 from app.shared.common import utc_now
 
 
@@ -72,6 +76,9 @@ class Order(SQLModel, table=True):
     discount: float = Field(default=0, sa_column=Column(Float(), nullable=False))
     total: float = Field(default=0, sa_column=Column(Float(), nullable=False))
     items: list["OrderItem"] = Relationship(back_populates="order")
+
+    assignments: list["DriverAssignment"] = Relationship(back_populates="order")
+
     created_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),

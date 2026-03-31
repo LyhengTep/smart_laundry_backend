@@ -1,10 +1,12 @@
 
 
 from datetime import datetime
-import email
 from uuid import UUID
 from sqlmodel import SQLModel
 
+from app.api.reponse_model import Page
+from app.modules.drivers.models import DARole, DAStatus
+from app.modules.orders.schema import OrderRead
 from app.modules.users.models import RoleName, UserStatus
 from app.modules.users.schema import UserEdit, UserRead, UserWrite
 
@@ -27,6 +29,29 @@ class DriverWrite(SQLModel):
     license_number: str | None
     vehicle_color: str
     user: UserEdit
+
+
+class DriverAssignmentCreate(SQLModel):
+    driver_id: UUID
+    order_id: UUID
+    role: DARole
+
+
+class DriverAssignmentRead(SQLModel):
+    id: UUID
+    driver_id: UUID
+    order_id: UUID
+    role: DARole | None
+    status: DAStatus | None
+    assignedAt: datetime | None
+    deliveryAt: datetime | None
+    order: OrderRead | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DriverAssignmentStatusUpdate(SQLModel):
+    status: DAStatus
 
 # class UserWrite(SQLModel):
 #     full_name: str

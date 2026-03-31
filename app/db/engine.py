@@ -1,5 +1,6 @@
 
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -29,3 +30,14 @@ async_session = async_sessionmaker(
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
+
+
+@asynccontextmanager
+async def get_session_context() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise

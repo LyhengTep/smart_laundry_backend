@@ -8,24 +8,15 @@ from enum import Enum
 from datetime import datetime, timezone
 
 # from app.modules.businesses.models import LaundryBusiness
-from app.modules.drivers.models import Driver
-from app.shared.common import utc_now
 
+from app.shared.common import RoleName, UserStatus, utc_now
+from app.modules.drivers.models import Driver
 
 if TYPE_CHECKING:
     from app.modules.businesses.models import LaundryBusiness
-    # from app.modules.drivers.models import Driver
-class UserStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    SUSPENDED = "SUSPENDED"
-    REJECTED = "REJECTED"
 
-class RoleName(str, Enum):
-    ADMIN = "ADMIN"
-    MERCHANT = "MERCHANT"
-    DRIVER = "DRIVER"
-    CUSTOMER = "CUSTOMER"
+
+
 
 class User(SQLModel, table=True):
     __tablename__="users"

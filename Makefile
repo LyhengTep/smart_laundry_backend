@@ -39,7 +39,7 @@ backup:
 	docker exec -t postgres-db pg_dumpall -U app_user > init/backup.sql
 
 test: 
-	$(PYTEST) 
+	$(PYTEST) -v
 
 migrate-db:
 	$(ALEMBIC) upgrade head

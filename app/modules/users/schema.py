@@ -5,7 +5,8 @@ import email
 from uuid import UUID
 from sqlmodel import SQLModel
 
-from app.modules.users.models import RoleName, UserStatus
+from app.modules.users.models import  UserStatus
+from app.shared.common import RoleName
 
 
 class UserRead(SQLModel):

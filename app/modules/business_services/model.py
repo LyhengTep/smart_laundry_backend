@@ -8,12 +8,11 @@ from sqlalchemy import Column, DateTime, Enum as SAEnum, Float, Integer, String,
 from sqlmodel import SQLModel
 from sqlmodel import Field, Relationship,SQLModel
 
-from app.modules.auth import service
-from app.modules.laundry_services.model import LaundryService
 from app.shared.common import utc_now
 
 if TYPE_CHECKING:
     from app.modules.businesses.models import LaundryBusiness
+    from app.modules.laundry_services.model import LaundryService
 
 
 

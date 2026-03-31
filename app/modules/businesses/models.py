@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING,  Optional
 from sqlalchemy import Column, DateTime, String
 from sqlmodel import SQLModel, Field, Relationship
 
-from app.modules.business_services.model import BusinessService
 from app.shared.common import utc_now
 
 
 
 
 if TYPE_CHECKING:
+    from app.modules.business_services.model import BusinessService
     from app.modules.users.models import User
 
 

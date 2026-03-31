@@ -10,6 +10,7 @@ from app.modules.laundry_services.router import router as laundry_services_route
 from app.modules.business_services.router import router as business_services_router
 from app.modules.orders.router import router as orders_router
 from app.modules.notifications.router import router as notifications_router
+from app.modules.realtime.router import router as realtime_router
 
 api_router = APIRouter()
 api_router.include_router(users_router)
@@ -21,3 +22,4 @@ api_router.include_router(laundry_services_router)
 api_router.include_router(business_services_router)
 api_router.include_router(orders_router)
 api_router.include_router(notifications_router)
+api_router.include_router(realtime_router)

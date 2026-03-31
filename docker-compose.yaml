@@ -83,6 +83,17 @@ services:
       PORT: 3000
       NEXT_PUBLIC_API_BASE_URL: http://ec2-13-229-201-188.ap-southeast-1.compute.amazonaws.com:8000/api/v1
     restart: unless-stopped
+
+  localstack:
+    image: localstack/localstack-pro
+    ports:
+      - 4566:4566
+      - 4510-4559:4510-4559
+      - 443:443
+    environment:
+      - LOCALSTACK_AUTH_TOKEN=ls-gIsaCIcE-detE-gefo-6308-caVi97743e76
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 volumes:
   postgres_data:
   uploads_data: 

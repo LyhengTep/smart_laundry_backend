@@ -31,6 +31,7 @@ def test_login_returns_token(monkeypatch: pytest.MonkeyPatch) -> None:
     user = build_user()
     session = FakeAsyncSession(exec_results=[user])
     monkeypatch.setattr(auth_service, "create_access_token", lambda user_id: f"token::{user_id}")
+    monkeypatch.setattr(auth_service, "verify_password", lambda raw, hashed: True)
 
     response = run_async(
         auth_service.login(
@@ -43,10 +44,11 @@ def test_login_returns_token(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.user_name == user.user_name
 
 
-def test_login_updates_msg_token_when_provided(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_login_does_not_commit_for_customer(monkeypatch: pytest.MonkeyPatch) -> None:
     user = build_user()
     session = FakeAsyncSession(exec_results=[user])
     monkeypatch.setattr(auth_service, "create_access_token", lambda user_id: f"token::{user_id}")
+    monkeypatch.setattr(auth_service, "verify_password", lambda raw, hashed: True)
 
     response = run_async(
         auth_service.login(
@@ -61,6 +63,22 @@ def test_login_updates_msg_token_when_provided(monkeypatch: pytest.MonkeyPatch) 
 
     assert user.msg_token is None
     assert session.commits == 0
+
+
+def test_login_raises_not_found_for_invalid_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    user = build_user()
+    session = FakeAsyncSession(exec_results=[user])
+    monkeypatch.setattr(auth_service, "verify_password", lambda raw, hashed: False)
+
+    with pytest.raises(Exception) as exc:
+        run_async(
+            auth_service.login(
+                LoginRequest(login=user.user_name, password="wrong", role=RoleName.CUSTOMER),
+                session,
+            )
+        )
+
+    assert getattr(exc.value, "status_code", None) == 404
 
 
 def test_login_raises_not_found_for_missing_user() -> None:

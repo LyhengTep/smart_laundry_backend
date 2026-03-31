@@ -7,15 +7,24 @@ from fastapi import HTTPException
 from app.modules.business_services.model import BusinessService, PriceType
 from app.modules.laundry_services.model import LaundryService, ServiceEnum
 from app.modules.orders.models import Order, OrderItem, OrderStatus, PickupMethod
-from app.modules.orders.schema import OrderCreateItem, OrderPricingItemUpdate, OrderPricingUpdate
+from app.modules.orders.schema import (
+    OrderCreateItem,
+    OrderPricingItemUpdate,
+    OrderPricingUpdate,
+    OrderStatusUpdate,
+)
+from app.modules.orders import service as order_service
 from app.modules.orders.service import (
+    build_order_event_payload,
     build_order_items,
     calculate_order_item_subtotal,
     calculate_order_total,
     generate_order_no,
+    update_order_status,
     update_order_pricing,
     validate_status_transition,
 )
+from app.modules.users.models import RoleName, User, UserStatus
 from app.tests.modules.conftest import FakeAsyncSession, run_async
 
 
@@ -100,6 +109,40 @@ def test_generate_order_no_has_expected_prefix() -> None:
     assert generate_order_no().startswith("ORD-")
 
 
+def test_build_order_event_payload_contains_expected_fields() -> None:
+    now = datetime.now(timezone.utc)
+    order = Order(
+        id=uuid4(),
+        order_no="ORD-001",
+        customer_id=uuid4(),
+        business_id=uuid4(),
+        driver_id=None,
+        status=OrderStatus.PENDING,
+        pickup_method=PickupMethod.PICKUP,
+        placed_at=now,
+        pickup_address="Pickup",
+        pickup_latitude=1.0,
+        pickup_longitude=2.0,
+        delivery_address="Delivery",
+        delivery_latitude=3.0,
+        delivery_longitude=4.0,
+        notes=None,
+        subtotal=7.5,
+        discount=0,
+        total=7.5,
+        created_at=now,
+        updated_at=now,
+        items=[],
+    )
+
+    payload = build_order_event_payload("order_status_updated", order)
+
+    assert payload["event"] == "order_status_updated"
+    assert payload["order_id"] == str(order.id)
+    assert payload["customer_id"] == str(order.customer_id)
+    assert payload["status"] == OrderStatus.PENDING.value
+
+
 def test_calculate_order_total_applies_discount() -> None:
     assert calculate_order_total([10.0, 5.0], 3.0) == 12.0
 
@@ -152,6 +195,100 @@ def build_order_for_pricing(status: OrderStatus) -> tuple[Order, OrderItem]:
     )
     item.order_id = order.id
     return order, item
+
+
+def build_user() -> User:
+    now = datetime.now(timezone.utc)
+    return User(
+        id=uuid4(),
+        full_name="Order User",
+        user_name="order-user",
+        email="order@example.com",
+        phone=None,
+        msg_token="firebase-token",
+        password_hash="hashed",
+        role=RoleName.CUSTOMER,
+        status=UserStatus.ACTIVE,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def test_update_order_status_updates_status_and_driver(monkeypatch: pytest.MonkeyPatch) -> None:
+    order, _ = build_order_for_pricing(OrderStatus.CONFIRMED)
+    driver_id = uuid4()
+    session = FakeAsyncSession(exec_results=[order, order])
+    broadcast_calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(order_service, "utc_now", lambda: datetime(2026, 3, 27, tzinfo=timezone.utc))
+
+    async def fake_broadcast(event: str, updated_order: Order) -> None:
+        broadcast_calls.append((event, str(updated_order.id)))
+
+    monkeypatch.setattr(order_service, "broadcast_order_event", fake_broadcast)
+
+    updated = run_async(
+        update_order_status(
+            order.id,
+            OrderStatusUpdate(status=OrderStatus.PICKUP_ASSIGNED, driver_id=driver_id),
+            session,
+        )
+    )
+
+    assert updated.status == OrderStatus.PICKUP_ASSIGNED
+    assert updated.driver_id == driver_id
+    assert session.commits == 1
+    assert broadcast_calls == [("order_status_updated", str(order.id))]
+
+
+def test_update_order_status_rejects_invalid_transition() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PENDING)
+    session = FakeAsyncSession(exec_results=[order])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            update_order_status(
+                order.id,
+                OrderStatusUpdate(status=OrderStatus.PROCESSING),
+                session,
+            )
+        )
+
+    assert exc.value.status_code == 400
+
+
+def test_update_order_status_cancelled_sends_notification(monkeypatch: pytest.MonkeyPatch) -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PENDING)
+    user = build_user()
+    user.id = order.customer_id
+    session = FakeAsyncSession(exec_results=[order, user, order])
+    sent_messages: list[tuple[str | None, str, str]] = []
+    broadcast_calls: list[str] = []
+
+    async def fake_broadcast(event: str, updated_order: Order) -> None:
+        broadcast_calls.append(event)
+
+    monkeypatch.setattr(order_service, "broadcast_order_event", fake_broadcast)
+    monkeypatch.setattr(
+        order_service,
+        "send_firebase_message",
+        lambda token, title, body: sent_messages.append((token, title, body)),
+    )
+
+    updated = run_async(
+        update_order_status(
+            order.id,
+            OrderStatusUpdate(status=OrderStatus.CANCELLED),
+            session,
+        )
+    )
+
+    assert updated.status == OrderStatus.CANCELLED
+    assert session.commits == 1
+    assert broadcast_calls == ["order_status_updated"]
+    assert sent_messages == [
+        ("firebase-token", "Order Cancelled", f"Your order no {order.order_no} was cancelled")
+    ]
 
 
 def test_update_order_pricing_rejects_before_shop_delivery() -> None:

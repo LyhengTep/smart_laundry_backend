@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from uuid import UUID, uuid4
 
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import func
 from app.api.reponse_model import Page
+from app.core.config import TOPIC_PICKUP_ASSIGNMENT
 from app.core.firebase import send_firebase_message
 from app.exceptions.http import create_400, create_404
+from app.lib.aws import send_sqs_message
+from app.modules.drivers.models import DARole
+from app.modules.realtime.manager import connection_manager
 from app.modules.business_services.model import BusinessService
 from app.modules.businesses.models import LaundryBusiness
 from app.modules.orders.models import Order, OrderItem, OrderStatus
@@ -21,6 +27,7 @@ from app.modules.orders.schema import (
     OrderStatusUpdate,
 )
 from app.modules.users.models import RoleName, User
+from app.modules.drivers import service as driver
 from app.shared.common import utc_now
 
 
@@ -77,6 +84,23 @@ def validate_status_transition(current_status: OrderStatus, new_status: OrderSta
     allowed_statuses = ORDER_STATUS_TRANSITIONS[current_status]
     if new_status not in allowed_statuses:
         raise create_400(f"Cannot change order status from {current_status} to {new_status}")
+
+
+def build_order_event_payload(event: str, order: OrderRead) -> dict:
+    return {
+        "event": event,
+        "order_id": str(order.id),
+        "customer_id": str(order.customer_id),
+        "business_id": str(order.business_id),
+        "status": order.status.value,
+        "data": jsonable_encoder(order),
+    }
+
+
+async def broadcast_order_event(event: str, order: OrderRead) -> None:
+    payload = build_order_event_payload(event=event, order=order)
+    await connection_manager.send_json(f"order:{order.id}", payload)
+    await connection_manager.send_json(f"user:{order.customer_id}", payload)
 
 
 def build_order_items(
@@ -229,7 +253,9 @@ async def create_order(session: AsyncSession, data: OrderCreate) -> OrderRead:
     )
     session.add(order)
     await session.commit()
-    return await get_order_by_id(order.id, session)
+    created_order = await get_order_by_id(order.id, session)
+    await broadcast_order_event("order_created", created_order)
+    return created_order
 
 
 async def update_order_status(
@@ -248,6 +274,10 @@ async def update_order_status(
 
     session.add(order)
     await session.commit()
+
+
+
+    # Send Notification to customer when shop reject their order
     if data.status== OrderStatus.CANCELLED:
         statement= select(User).where(User.id==order.customer_id)
         res= await session.exec(statement)
@@ -259,7 +289,20 @@ async def update_order_status(
                 title=f"Order Cancelled",
                 body=f"Your order no {order.order_no} was cancelled"
             )
-    return await get_order_by_id(order_id=order_id, session=session)
+
+           
+    # Broadcast event to pickup assignment service when order is confirmed, so that it can assign driver for pickup
+    if data.status == OrderStatus.CONFIRMED:
+         send_sqs_message(
+                queue_name=TOPIC_PICKUP_ASSIGNMENT,
+                message_body=json.dumps({
+                    "order_id": str(order.id),
+                    "type": "PICKUP"
+                })
+            )     
+    updated_order = await get_order_by_id(order_id=order_id, session=session)
+    # await broadcast_order_event("order_status_updated", updated_order)
+    return updated_order
 
 
 async def update_order_pricing(
@@ -298,4 +341,6 @@ async def update_order_pricing(
 
     session.add(order)
     await session.commit()
-    return await get_order_by_id(order_id=order_id, session=session)
+    updated_order = await get_order_by_id(order_id=order_id, session=session)
+    await broadcast_order_event("order_pricing_updated", updated_order)
+    return updated_order

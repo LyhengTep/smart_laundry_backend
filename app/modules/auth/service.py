@@ -6,26 +6,36 @@ from app.exceptions.user import UserExistingError
 from app.modules.auth.schema import LoginRequest,LoginResponse, SignupRequest
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.exc import NoResultFound
-from app.modules.drivers.models import Driver
-from app.modules.users.models import RoleName, User, UserStatus
-from app.shared.common import is_email
-from app.shared.passwords import create_access_token, hash_password
+from app.modules.drivers.models import Driver, DriverStatus
+from app.modules.users.models import  User, UserStatus
+from app.shared.common import RoleName, is_email
+from app.shared.passwords import create_access_token, hash_password, verify_password
 
 
 async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
     try:
       user: User
-      statement= select(User).where(User.user_name==data.login,User.role==data.role)
+      statement = select(User).where(User.user_name == data.login, User.role == data.role)
       if is_email(data.login):
-        statement=select(User).where(User.email==data.login,User.role==data.role)
+        statement = select(User).where(User.email == data.login, User.role == data.role)
       
-      # Query user 
-      results=await session.exec(statement)
-      user= results.one()
+      results = await session.exec(statement)
+      user = results.one()
 
-      if user is None:
+      if user is None or not verify_password(data.password, user.password_hash):
         raise create_404("Login not found")
       token=create_access_token(str(user.id))
+
+      # Update Driver status to ONLINE 
+      if data.role==RoleName.DRIVER:
+         select_driver= select(Driver).where(Driver.user_id==user.id)
+         driver_res = await session.exec(select_driver)
+         driver= driver_res.one()
+         driver.driver_status= DriverStatus.ONLINE
+         if driver is None:
+            raise create_404("Driver is not found")
+         session.add(driver)
+         await session.commit()
 
       response=LoginResponse(token=token, **user.model_dump(exclude="password"))
   
@@ -36,7 +46,8 @@ async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
        print(f"Unknow error {e}")
        raise create_500("Unknown error occurred")
 
-
+async def logout(data: LoginRequest, session: AsyncSession)-> LoginResponse:
+      pass
 
 async def signup(data: SignupRequest,session: AsyncSession):
    try:
