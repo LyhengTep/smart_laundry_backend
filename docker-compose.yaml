@@ -40,7 +40,8 @@ services:
     platform: linux/amd64
     container_name: smart-laundry-backend
     restart: unless-stopped
-    image: lyheng/smartlaundry_backend:0.0.1-dev.6
+    # image: lyheng/smartlaundry_backend:0.0.1-dev.6
+    image: lyheng/smartlaundry_backend:236eb315a3c106416a031f5bd7bfcf72ba2bd478
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`) || PathPrefix(`/public/uploads`)"
@@ -57,6 +58,9 @@ services:
       FIREBASE_CREDENTIALS_PATH: /app/msg/firebaseServiceAccount.json
       FIREBASE_PROJECT_ID: smartlaundry-ae5d5
       DB_INIT_STRATEGY: create_all
+      AWS_S3_ENDPOINT_URL: https://sqs.ap-southeast-1.amazonaws.com/198170202285/pickup_assignment
+      AWS_REGION: ap-southeast-1
+
     volumes:
       - ./firebaseServiceAccount.json:/app/msg/firebaseServiceAccount.json
     ports:
@@ -65,7 +69,8 @@ services:
     depends_on:
       - postgres
   web: 
-    image: lyheng/smart-laundry-web:0.0.1-dev.5
+    # image: lyheng/smart-laundry-web:0.0.1-dev.5
+    image: lyheng/smart-laundry-web:618f0675e54f2e4fdab45d9af3995b06521c3fe9
     platform: linux/amd64
     labels:
       - "traefik.enable=true"
@@ -84,16 +89,16 @@ services:
       NEXT_PUBLIC_API_BASE_URL: http://ec2-13-229-201-188.ap-southeast-1.compute.amazonaws.com:8000/api/v1
     restart: unless-stopped
 
-  localstack:
-    image: localstack/localstack-pro
-    ports:
-      - 4566:4566
-      - 4510-4559:4510-4559
-      - 443:443
-    environment:
-      - LOCALSTACK_AUTH_TOKEN=ls-gIsaCIcE-detE-gefo-6308-caVi97743e76
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+  # localstack:
+  #   image: localstack/localstack-pro
+  #   ports:
+  #     - 4566:4566
+  #     - 4510-4559:4510-4559
+  #     - 443:443
+  #   environment:
+  #     - LOCALSTACK_AUTH_TOKEN=ls-gIsaCIcE-detE-gefo-6308-caVi97743e76
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
 volumes:
   postgres_data:
   uploads_data: 
