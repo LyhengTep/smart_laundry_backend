@@ -10,5 +10,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: testing
-        run: echo "Testing..."
+        
+      - name: Build Docker Image
+        run: docker build -t lyheng/smartlaundry_backend:0.0.1-dev.6 .
