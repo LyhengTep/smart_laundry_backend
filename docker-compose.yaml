@@ -36,7 +36,7 @@ services:
       - uploads_data:/app/app/uploads
       - ./init:/docker-entrypoint-initdb.d
   smart_laundry_backend:
-    build: .
+    # build: .
     platform: linux/amd64
     container_name: smart-laundry-backend
     restart: unless-stopped
