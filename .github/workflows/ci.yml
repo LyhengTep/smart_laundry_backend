@@ -22,3 +22,17 @@ jobs:
 
       - name: Push Docker Image
         run: docker push lyheng/smartlaundry_backend:${{ github.sha }}
+
+      - name: Notify Success
+        if: success()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELE_TOKEN }}/sendMessage \
+          -d chat_id=${{ secrets.TELE_CHAT_ID }} \
+          -d text="✅ Backend build succeeded for commit ${{ github.sha }} by ${{ github.actor }}. Image: lyheng/smartlaundry_backend:${{ github.sha }}"
+
+      - name: Notify Failure
+        if: failure()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELE_TOKEN }}/sendMessage \
+          -d chat_id=${{ secrets.TELE_CHAT_ID }} \
+          -d text="❌ Backend build failed for commit ${{ github.sha }} by ${{ github.actor }}. Please check the GitHub Actions logs for details."
