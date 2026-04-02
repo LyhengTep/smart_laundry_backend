@@ -5,7 +5,7 @@ from urllib import response
 from fastapi import APIRouter, Depends
 
 from app.db.engine import get_session
-from app.modules.auth.schema import LoginRequest, LoginResponse, SignupRequest
+from app.modules.auth.schema import LoginRequest, LoginResponse, LogoutRequest, SignupRequest
 from app.modules.auth import service as svc
 from sqlmodel.ext.asyncio.session import AsyncSession
 router = APIRouter(prefix="/auths",tags=["auth"])
@@ -29,6 +29,6 @@ async def password_reset()-> dict[str, str]:
     
     return {"msg": "World"}
 
-# @router.post("/logout")
-# async def login()-> dict[str, str]:
-#     return {"msg": "World"}
+@router.post("/logout")
+async def logout(data: LogoutRequest, session: AsyncSession = Depends(get_session)) -> dict[str, str]:
+    return await svc.logout(data=data, session=session)

@@ -1,11 +1,14 @@
 
 
 from datetime import datetime
-import email
+from typing import Optional
 from uuid import UUID
 from sqlmodel import SQLModel
 
+
+# from app.modules.auth.schema import DriverBasicRead
 from app.modules.users.models import  UserStatus
+from app.shared.all_schema import DriverBasicRead
 from app.shared.common import RoleName
 
 
@@ -19,7 +22,7 @@ class UserRead(SQLModel):
     role: RoleName
     created_at: datetime
     updated_at: datetime
-
+    driver: Optional[DriverBasicRead]= None
 
 
 class UserWrite(SQLModel):

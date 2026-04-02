@@ -9,6 +9,8 @@ from sqlmodel import Field, Relationship, SQLModel
 from app.modules.business_services.model import PriceType
 if TYPE_CHECKING:
     from app.modules.drivers.models import DriverAssignment
+    from app.modules.users.models import User
+    from app.modules.businesses.models import LaundryBusiness
 
 from app.shared.common import utc_now
 
@@ -76,7 +78,8 @@ class Order(SQLModel, table=True):
     discount: float = Field(default=0, sa_column=Column(Float(), nullable=False))
     total: float = Field(default=0, sa_column=Column(Float(), nullable=False))
     items: list["OrderItem"] = Relationship(back_populates="order")
-
+    customer: "User" = Relationship(back_populates="orders")
+    business: "LaundryBusiness" = Relationship(back_populates="orders")
     assignments: list["DriverAssignment"] = Relationship(back_populates="order")
 
     created_at: datetime = Field(

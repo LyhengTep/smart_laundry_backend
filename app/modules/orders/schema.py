@@ -4,7 +4,10 @@ from uuid import UUID
 from sqlmodel import SQLModel
 
 from app.modules.business_services.model import PriceType
+from app.modules.businesses.schema import BusinessRead
 from app.modules.orders.models import OrderStatus, PickupMethod
+from app.modules.users.schema import UserRead
+from app.shared.all_schema import UserReadBasicRead
 
 
 class OrderCreateItem(SQLModel):
@@ -67,6 +70,15 @@ class OrderRead(SQLModel):
     created_at: datetime
     updated_at: datetime
     items: list[OrderItemRead]
+    customer: UserReadBasicRead | None
+    model_config = {"from_attributes": True}
+
+
+
+class OrderReadV2(OrderRead):
+    customer: UserRead | None
+    business: BusinessRead | None
+    model_config = {"from_attributes": True}
 
 
 class OrderStatusUpdate(SQLModel):

@@ -1,24 +1,30 @@
 
 
+import logging
+
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from app.exceptions.http import  create_400, create_404, create_500
 from app.exceptions.user import UserExistingError
-from app.modules.auth.schema import LoginRequest,LoginResponse, SignupRequest
+from app.modules.auth.schema import LoginRequest,LoginResponse, LogoutRequest, SignupRequest
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.exc import NoResultFound
 from app.modules.drivers.models import Driver, DriverStatus
 from app.modules.users.models import  User, UserStatus
+from app.modules.users.schema import UserRead
 from app.shared.common import RoleName, is_email
 from app.shared.passwords import create_access_token, hash_password, verify_password
 
-
+logger = logging.getLogger(__name__)
 async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
     try:
       user: User
       statement = select(User).where(User.user_name == data.login, User.role == data.role)
       if is_email(data.login):
         statement = select(User).where(User.email == data.login, User.role == data.role)
+            # Update Driver status to ONLINE 
       
+
       results = await session.exec(statement)
       user = results.one()
 
@@ -26,7 +32,6 @@ async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
         raise create_404("Login not found")
       token=create_access_token(str(user.id))
 
-      # Update Driver status to ONLINE 
       if data.role==RoleName.DRIVER:
          select_driver= select(Driver).where(Driver.user_id==user.id)
          driver_res = await session.exec(select_driver)
@@ -36,8 +41,11 @@ async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
             raise create_404("Driver is not found")
          session.add(driver)
          await session.commit()
+         await session.refresh(driver)
+         user.driver= driver
 
-      response=LoginResponse(token=token, **user.model_dump(exclude="password"))
+      user_data = UserRead.model_validate(user).model_dump(mode="json")
+      response=LoginResponse(token=token, **user_data)
   
       return response
     except NoResultFound: 
@@ -46,8 +54,24 @@ async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
        print(f"Unknow error {e}")
        raise create_500("Unknown error occurred")
 
-async def logout(data: LoginRequest, session: AsyncSession)-> LoginResponse:
-      pass
+async def logout(data: LogoutRequest, session: AsyncSession) -> dict[str, str]:
+   user = await session.get(User, data.user_id)
+   if user is None:
+      raise create_404("User not found")
+
+   user.msg_token = None
+   session.add(user)
+
+   if data.role == RoleName.DRIVER:
+      select_driver = select(Driver).where(Driver.user_id == user.id)
+      driver_res = await session.exec(select_driver)
+      driver = driver_res.one_or_none()
+      if driver is not None:
+         driver.driver_status = DriverStatus.OFFLINE
+         session.add(driver)
+
+   await session.commit()
+   return {"message": "Logout successful"}
 
 async def signup(data: SignupRequest,session: AsyncSession):
    try:

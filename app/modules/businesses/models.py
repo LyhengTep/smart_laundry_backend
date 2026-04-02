@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING,  Optional
 from sqlalchemy import Column, DateTime, String
 from sqlmodel import SQLModel, Field, Relationship
 
+
 from app.shared.common import utc_now
 
 
@@ -15,6 +16,8 @@ from app.shared.common import utc_now
 if TYPE_CHECKING:
     from app.modules.business_services.model import BusinessService
     from app.modules.users.models import User
+    from app.modules.orders.models import Order
+    
 
 
 
@@ -53,7 +56,7 @@ class LaundryBusiness(SQLModel, table=True):
     open_time: time
     close_time: time
     status: ShopStatus = Field(default=ShopStatus.PENDING)
-
+    orders: list["Order"] = Relationship(back_populates="business")
     created_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),

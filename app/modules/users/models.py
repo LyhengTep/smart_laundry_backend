@@ -14,6 +14,7 @@ from app.modules.drivers.models import Driver
 
 if TYPE_CHECKING:
     from app.modules.businesses.models import LaundryBusiness
+    from app.modules.orders.models import Order
 
 
 
@@ -36,6 +37,8 @@ class User(SQLModel, table=True):
         default=UserStatus.ACTIVE,
         sa_column=Column(SAEnum(UserStatus, name="user_status"), nullable=False, index=True),
     )
+
+    orders: list["Order"] = Relationship(back_populates="customer")
     driver: Driver | None = Relationship(back_populates="user")
     businesses: list["LaundryBusiness"] = Relationship(back_populates="owner")
     

@@ -5,6 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.reponse_model import Page
 from app.db.engine import get_session
+from app.lib.security import get_current_user
 from app.modules.drivers.models import DARole, DAStatus
 from app.modules.drivers.schema import (
     DriverAssignmentCreate,
@@ -35,6 +36,7 @@ async def list_assignments(
     status: DAStatus | None = Query(default=None),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
+    # current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Page[DriverAssignmentRead]:
     return await svc.list_assignments(
@@ -45,6 +47,7 @@ async def list_assignments(
         status=status,
         page=page,
         size=size,
+
     )
 
 

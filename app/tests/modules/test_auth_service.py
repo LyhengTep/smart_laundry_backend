@@ -5,7 +5,8 @@ import pytest
 from sqlalchemy.exc import NoResultFound
 
 from app.modules.auth import service as auth_service
-from app.modules.auth.schema import LoginRequest, SignupRequest
+from app.modules.auth.schema import LoginRequest, LogoutRequest, SignupRequest
+from app.modules.drivers.models import Driver, DriverStatus
 from app.modules.users.models import RoleName, User, UserStatus
 from app.tests.modules.conftest import FakeAsyncSession, run_async
 
@@ -110,3 +111,49 @@ def test_signup_rejects_existing_user() -> None:
         run_async(auth_service.signup(data, session))
 
     assert getattr(exc.value, "status_code", None) == 400
+
+
+def test_logout_clears_customer_msg_token() -> None:
+    user = build_user()
+    user.msg_token = "firebase-token"
+    session = FakeAsyncSession(get_results=[user])
+
+    response = run_async(
+        auth_service.logout(
+            LogoutRequest(user_id=user.id, role=RoleName.CUSTOMER),
+            session,
+        )
+    )
+
+    assert response == {"message": "Logout successful"}
+    assert user.msg_token is None
+    assert session.commits == 1
+
+
+def test_logout_sets_driver_offline_and_clears_token() -> None:
+    user = build_user()
+    user.role = RoleName.DRIVER
+    user.msg_token = "firebase-token"
+    driver = Driver(
+        id=uuid4(),
+        user_id=user.id,
+        plate_number="ABC123",
+        id_card_number="ID123",
+        vehicle_type="Bike",
+        driver_status=DriverStatus.ONLINE,
+        license_number=None,
+        vehicle_color="Red",
+    )
+    session = FakeAsyncSession(get_results=[user], exec_results=[driver])
+
+    response = run_async(
+        auth_service.logout(
+            LogoutRequest(user_id=user.id, role=RoleName.DRIVER),
+            session,
+        )
+    )
+
+    assert response == {"message": "Logout successful"}
+    assert user.msg_token is None
+    assert driver.driver_status == DriverStatus.OFFLINE
+    assert session.commits == 1

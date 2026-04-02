@@ -1,6 +1,8 @@
 
 
 
+from uuid import UUID
+
 from sqlmodel import SQLModel
 
 from app.modules.users.schema import UserRead, UserWrite
@@ -16,6 +18,12 @@ class LoginRequest(SQLModel):
 
 class LoginResponse(UserRead): 
     token: str
+
+
+class LogoutRequest(SQLModel):
+    user_id: UUID
+    role: RoleName
+
 
 
 

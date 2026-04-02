@@ -1,12 +1,16 @@
 import logging
+from math import log
 from uuid import UUID
+import uuid
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.api.reponse_model import Page
+from app.core.firebase import send_firebase_message
 from app.exceptions.http import create_400, create_404
 from app.modules.businesses.models import LaundryBusiness
+from app.modules.device_tokens.models import DeviceToken
 from app.modules.drivers.models import DARole, DAStatus, Driver, DriverAssignment, DriverAssignmentHistory, DriverStatus
 from app.modules.drivers.schema import (
     DriverAssignmentCreate,
@@ -16,6 +20,7 @@ from app.modules.drivers.schema import (
     DriverWrite,
 )
 from app.modules.orders.models import Order
+from app.modules.orders.schema import OrderRead, OrderReadV2
 from app.modules.users.models import User, UserStatus
 from app.modules.realtime.manager import connection_manager
 import asyncio
@@ -157,9 +162,20 @@ async def list_assignments(
     status: DAStatus | None = None,
     page: int = 1,
     size: int = 10,
+    # user_id: uuid.UUID
 ) -> Page[DriverAssignmentRead]:
+    
+
+    # driver_statement=select(Driver).where(Driver.user_id==user_id)
+    # driver_res= await session.exec(driver_statement)
+    # driver = driver_res.one_or_none()
+    # if driver is None:
+    #     driver_id=driver.id
+    
     offset = (page - 1) * size
-    statement = select(DriverAssignment).offset(offset).limit(size).order_by(DriverAssignment.created_at.desc())
+    statement = select(DriverAssignment).offset(offset).limit(size).order_by(DriverAssignment.created_at.desc()).options(selectinload(DriverAssignment.order).selectinload(Order.items),
+                                                                                                                         selectinload(DriverAssignment.order).selectinload(Order.customer),
+                                                                                                                         selectinload(DriverAssignment.order).selectinload(Order.business))
     count_statement = select(func.count(DriverAssignment.id))
 
     if driver_id is not None:
@@ -220,8 +236,20 @@ async def get_assignment_with_details(session: AsyncSession,assignment_id)-> Dri
     return assignment
 
 
+
+async def get_assignment_with_details_v2(session: AsyncSession,assignment_id)-> DriverAssignment:
+    ass_statement= select(DriverAssignment).where(DriverAssignment.id==assignment_id).options(selectinload(DriverAssignment.order).selectinload(Order.items),
+                                                                                              selectinload(DriverAssignment.order).selectinload(Order.business),
+                                                                                              selectinload(DriverAssignment.order).selectinload(Order.customer).selectinload(User.driver))
+
+    ass_res = await session.exec(ass_statement)
+    assignment= ass_res.first()
+
+    logger.info(f"Retrieved assignment with details: {assignment}")
+    return assignment
+
 async def get_assignment_by_id(session: AsyncSession, assignment_id: UUID) -> DriverAssignmentRead:
-    assignment = await get_assignment_with_details(session=session, assignment_id=assignment_id)
+    assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     if assignment is None:
         raise create_404("Driver assignment not found")
     return assignment
@@ -257,7 +285,7 @@ async def update_assignment_status(
     assignment_id: UUID,
     data: DriverAssignmentStatusUpdate,
 ) -> DriverAssignmentRead:
-    assignment = await get_assignment(session=session, assignment_id=assignment_id)
+    assignment = await get_assignment_with_details(session=session, assignment_id=assignment_id)
     if assignment is None:
         raise create_404("Driver assignment not found")
 
@@ -343,7 +371,10 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
     if len(drivers) == 0:
         logger.warning("No available drivers for auto-assigning")
         return
-    assignment = await get_assignment_with_details(session=session,assignment_id=assignment_id)
+    assignment = await get_assignment_with_details_v2(session=session,assignment_id=assignment_id)
+
+
+    logger.info(f"Retrieved assignment with details: {assignment}")
     await create_assignment_history(session=session,driver_id=drivers[0].id,role= assignment.role,order_id=assignment.order_id,assignment_id=assignment.id,reason="TIMEOUT")
 
     # Get customer and to be refactor later
@@ -356,15 +387,26 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
     shop_res =await session.exec(shop_statement)
     shop = shop_res.one_or_none()
     # Broadcast Websocket to driver
+
+    order_data =OrderReadV2.model_validate(assignment.order).model_dump(mode="json")
+    
     await connection_manager.send_json(
         room=get_assignment_room(str(drivers[0].id)),
-        payload={"type": assignment.role, 
-                 "assignment_id": str(assignment_id),
-                 "order":assignment.order.model_dump(mode="json"),
-                 "customer": customer.model_dump(mode="json") if customer else None,
-                 "laundry_business": shop.model_dump(mode="json") if shop else None
+        payload={"role": assignment.role, 
+                 "id": str(assignment_id),
+                 "order":order_data,
                  },
     )
+
+    device_statement= select(DeviceToken).where(DeviceToken.driver_id==drivers[0].id)
+    device_res = await session.exec(device_statement)
+    device_tokens= device_res.fetchall()
+
+    logger.info(f"Sending push notification to driver {drivers[0].id} with device tokens: {device_tokens}")
+    for device in device_tokens:
+        send_firebase_message(token=device.token,title="New Assignment",body=f"You have a new {assignment.role.value} assignment",data={"assignment_id": str(assignment_id)})
+
+    # await 
     await asyncio.create_task(assignment_timeout(session,assignment_id))
 
 

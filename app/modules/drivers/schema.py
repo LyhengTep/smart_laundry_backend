@@ -5,11 +5,11 @@ from uuid import UUID
 from sqlmodel import SQLModel
 
 from app.api.reponse_model import Page
-from app.modules.drivers.models import DARole, DAStatus
+from app.modules.drivers.models import DARole, DAStatus, DriverAssignment
 from app.modules.orders.schema import OrderRead
 from app.modules.users.models import RoleName, UserStatus
 from app.modules.users.schema import UserEdit, UserRead, UserWrite
-
+from typing import Optional
 
 class DriverRead(SQLModel):
     id: UUID
@@ -52,6 +52,14 @@ class DriverAssignmentRead(SQLModel):
 
 class DriverAssignmentStatusUpdate(SQLModel):
     status: DAStatus
+
+# class AssignmentRead(DriverAssignment):
+    
+#     order: Optional[OrderRead] = None
+
+#     model_config = {"from_attributes": True}
+
+
 
 # class UserWrite(SQLModel):
 #     full_name: str
