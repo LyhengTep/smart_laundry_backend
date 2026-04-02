@@ -60,7 +60,7 @@ services:
       DB_INIT_STRATEGY: create_all
       AWS_S3_ENDPOINT_URL: https://sqs.ap-southeast-1.amazonaws.com/198170202285/pickup_assignment
       AWS_REGION: ap-southeast-1
-
+      TOPIC_PICKUP_ASSIGNMENT: pickup_assignment
     volumes:
       - ./firebaseServiceAccount.json:/app/msg/firebaseServiceAccount.json
     ports:
