@@ -91,4 +91,4 @@ docker-compose.override.yml
 app/uploads
 AGENTS*
 
-firebase*
+firebaseServiceAccount.json
