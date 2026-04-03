@@ -1,5 +1,5 @@
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from sqlmodel import Field, Relationship,SQLModel
 from sqlalchemy import Column, DateTime, Enum as SAEnum, String, Text
 from uuid import UUID, uuid4
@@ -73,7 +73,7 @@ class Driver(SQLModel, table=True):
 class DriverAssignment(SQLModel, table=True):
     __tablename__="driver_assignments"
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
-    driver_id: UUID = Field(foreign_key="drivers.id")
+    driver_id: Optional[UUID] = Field(foreign_key="drivers.id")
     order_id :UUID = Field(foreign_key="orders.id")
     role: DARole | None = Field(
         default=None,

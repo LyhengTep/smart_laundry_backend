@@ -70,7 +70,7 @@ services:
       - postgres
   web: 
     # image: lyheng/smart-laundry-web:0.0.1-dev.5
-    image: lyheng/smart-laundry-web:618f0675e54f2e4fdab45d9af3995b06521c3fe9
+    image: lyheng/smart-laundry-web:5c8fe863734ab01574e15caabdaf7b204d5938ee
     platform: linux/amd64
     labels:
       - "traefik.enable=true"

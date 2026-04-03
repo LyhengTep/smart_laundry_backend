@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 
@@ -19,26 +20,31 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "device_tokens",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("driver_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("token", sa.Text(), nullable=False),
-        sa.Column("device_type", sa.String(length=50), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["driver_id"], ["drivers.id"]),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(op.f("ix_device_tokens_user_id"), "device_tokens", ["user_id"], unique=False)
-    op.create_index(op.f("ix_device_tokens_driver_id"), "device_tokens", ["driver_id"], unique=False)
-    op.create_index(op.f("ix_device_tokens_token"), "device_tokens", ["token"], unique=True)
+    bind = op.get_bind()
+    inspector = inspect(bind)
+
+    if not inspector.has_table("device_tokens"):
+        op.create_table(
+            "device_tokens",
+            sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
+            sa.Column("driver_id", postgresql.UUID(as_uuid=True), nullable=True),
+            sa.Column("token", sa.Text(), nullable=False),
+            sa.Column("device_type", sa.String(length=50), nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+            sa.ForeignKeyConstraint(["driver_id"], ["drivers.id"]),
+            sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
+            sa.PrimaryKeyConstraint("id"),
+        )
+
+    op.execute("CREATE INDEX IF NOT EXISTS ix_device_tokens_user_id ON device_tokens (user_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_device_tokens_driver_id ON device_tokens (driver_id)")
+    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_device_tokens_token ON device_tokens (token)")
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_device_tokens_token"), table_name="device_tokens")
-    op.drop_index(op.f("ix_device_tokens_driver_id"), table_name="device_tokens")
-    op.drop_index(op.f("ix_device_tokens_user_id"), table_name="device_tokens")
-    op.drop_table("device_tokens")
+    op.execute("DROP INDEX IF EXISTS ix_device_tokens_token")
+    op.execute("DROP INDEX IF EXISTS ix_device_tokens_driver_id")
+    op.execute("DROP INDEX IF EXISTS ix_device_tokens_user_id")
+    op.execute("DROP TABLE IF EXISTS device_tokens")

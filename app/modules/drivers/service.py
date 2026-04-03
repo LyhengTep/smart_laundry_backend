@@ -305,13 +305,17 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
         raise create_404("Driver assignment not found")
     if assignment.driver_id != driver.id:
         raise create_400("This assignment does not belong to the driver")
-    
-    
-    return await update_assignment_status(
+    assignment = await update_assignment_status(
         session=session,
         assignment_id=assignment_id,
         data=DriverAssignmentStatusUpdate(status=DAStatus.ACCEPTED),
     )
+
+    data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
+
+    print(f"accept assignment api with assignment data {data}")
+    
+    return data
 
 async def update_assignment_status(
     session: AsyncSession,
@@ -321,10 +325,10 @@ async def update_assignment_status(
     assignment = await get_assignment_with_details(session=session, assignment_id=assignment_id)
     if assignment is None:
         raise create_404("Driver assignment not found")
-
+    logger.info(f"Updated assignment status for assignment {assignment.order}")
     assignment.status = data.status
     session.add(assignment)
-
+    
     driver = await session.get(Driver, assignment.driver_id)
     if driver is not None:
         if data.status == DAStatus.ACCEPTED:
@@ -334,15 +338,8 @@ async def update_assignment_status(
         session.add(driver)
 
     await session.commit()
-    await session.refresh(assignment)
-    # await connection_manager.send_json(
-    #     get_assignment_room(str(assignment.driver_id)),
-    #     {
-    #         "event": "driver_assignment_status_updated",
-    #         "assignment_id": str(assignment.id),
-    #         "status": assignment.status.value if assignment.status else None,
-    #     },
-    # )
+
+    assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     return assignment
 
 async def unset_driver_assignment(session: AsyncSession,assignment_id:UUID):
@@ -453,27 +450,27 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
 
 
 # handle when driver dont accept assignment
-async  def assignment_timeout(session: AsyncSession,assignment_id: int,):
+async  def assignment_timeout(session: AsyncSession,assignment_id: UUID,):
     await asyncio.sleep(30)  # ⏱ 30 seconds
     logger.info("called assigned")
     assignment = await get_assignment(session,assignment_id)
-
+    logger.info(f"Fetched assignment for timeout check: {assignment}")
     if assignment.status != DAStatus.ACCEPTED:
         
         # reassign next driver
         await update_timout_history(session=session,assignment_id=assignment_id,driver_id=assignment.driver_id)
-        await unset_driver_assignment(session=session,assignment_id=assignment_id)
+        # logger.info(f"Assignment {assignment_id} timed out, unsetting driver assignment")
+        logger.info(f"Assignment {assignment.driver_id} timed out, unsetting driver assignment")
         await connection_manager.send_json(
             room=get_assignment_room(str(assignment.driver_id)),
-            payload={"type": "CANCELLED", 
+            payload={"role": "CANCELLED", 
                     "assignment_id": str(assignment_id)
                     },
         )
+        await unset_driver_assignment(session=session,assignment_id=assignment_id)
         await set_timeout_assign_driver(session,assignment_id)
         
         # update_order_statement = 
-       
-       
         logger.info("Assignment timed out, reassigning...")
 
     

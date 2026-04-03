@@ -24,7 +24,6 @@ HANDLERS={
 }
 
 
-
 async def process_message(message: dict, sem: asyncio.Semaphore) -> None:
     async with sem:
         try:
