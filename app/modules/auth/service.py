@@ -9,6 +9,8 @@ from app.exceptions.user import UserExistingError
 from app.modules.auth.schema import LoginRequest,LoginResponse, LogoutRequest, SignupRequest
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.exc import NoResultFound
+from app.modules.device_tokens.router import delete_device_token
+from app.modules.device_tokens.service import delete_device_tokens_by_user_id
 from app.modules.drivers.models import Driver, DriverStatus
 from app.modules.users.models import  User, UserStatus
 from app.modules.users.schema import UserRead
@@ -62,7 +64,7 @@ async def logout(data: LogoutRequest, session: AsyncSession) -> dict[str, str]:
 
    user.msg_token = None
    session.add(user)
-
+   await delete_device_tokens_by_user_id(data.user_id, session)
    if data.role == RoleName.DRIVER:
       select_driver = select(Driver).where(Driver.user_id == user.id)
       driver_res = await session.exec(select_driver)

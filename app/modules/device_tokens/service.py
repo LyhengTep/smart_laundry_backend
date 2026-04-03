@@ -66,3 +66,15 @@ async def delete_device_token(device_token_id: int, session: AsyncSession) -> bo
     await session.delete(device_token)
     await session.commit()
     return True
+
+
+async def delete_device_tokens_by_user_id(user_id: UUID, session: AsyncSession) -> int:
+    statement = select(DeviceToken).where(DeviceToken.user_id == user_id)
+    result = await session.exec(statement)
+    device_tokens = result.all()
+
+    for device_token in device_tokens:
+        await session.delete(device_token)
+
+    await session.commit()
+    return len(device_tokens)

@@ -6,7 +6,7 @@ from sqlmodel import SQLModel
 
 from app.api.reponse_model import Page
 from app.modules.drivers.models import DARole, DAStatus, DriverAssignment
-from app.modules.orders.schema import OrderRead
+from app.modules.orders.schema import OrderRead, OrderReadWithCustomer
 from app.modules.users.models import RoleName, UserStatus
 from app.modules.users.schema import UserEdit, UserRead, UserWrite
 from typing import Optional
@@ -45,7 +45,7 @@ class DriverAssignmentRead(SQLModel):
     status: DAStatus | None
     assignedAt: datetime | None
     deliveryAt: datetime | None
-    order: OrderRead | None
+    order: OrderReadWithCustomer | None
     created_at: datetime
     updated_at: datetime
 

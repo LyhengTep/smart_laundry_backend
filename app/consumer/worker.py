@@ -44,11 +44,12 @@ async def process_message(message: dict, sem: asyncio.Semaphore) -> None:
             pass 
         finally:
             print(f"Deleting message {message['MessageId']} from queue")
+            sqs_client = get_sqs_client()
             # Delete the message from the queue after processing
-            # sqs_client.delete_message(
-            #     QueueUrl=get_or_create_queue(QueueName=TOPIC_PICKUP_ASSIGNMENT),
-            #     ReceiptHandle=message['ReceiptHandle']
-            # )
+            sqs_client.delete_message(
+                QueueUrl=get_or_create_queue(queue_name=TOPIC_PICKUP_ASSIGNMENT,sqs=sqs_client),
+                ReceiptHandle=message['ReceiptHandle']
+            )
 
 def poll_sqs():
         sqs_client = get_sqs_client()

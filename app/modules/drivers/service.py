@@ -2,6 +2,7 @@ import logging
 from math import log
 from uuid import UUID
 import uuid
+from alembic.command import current
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -63,8 +64,8 @@ async def list_one_driver(session: AsyncSession, driver_id: str) -> DriverRead:
 async def get_driver_by_user_id(session: AsyncSession, user_id: UUID) -> DriverRead:
     result = await session.exec(select(Driver).where(Driver.user_id == user_id).options(selectinload(Driver.user)))
     driver = result.one_or_none()
-    if not driver:
-        raise create_404("Driver not found for this user")
+    # if not driver:
+    #     raise create_404("Driver not found for this user")
     return driver
 
 
@@ -279,6 +280,38 @@ async def create_assignment_api(session: AsyncSession, data: DriverAssignmentCre
     # )
     return assignment
 
+async def get_driver_active_assignment(session: AsyncSession, driver_id: UUID) -> DriverAssignmentRead | None:
+    statement = select(DriverAssignment).where(
+        DriverAssignment.driver_id == driver_id,
+        DriverAssignment.status == DAStatus.ACCEPTED,
+    ).options(selectinload(DriverAssignment.order).selectinload(Order.items))
+    result = await session.exec(statement)
+    assignment = result.one_or_none()
+    return assignment
+
+async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_id: UUID) -> DriverAssignmentRead:
+    driver = await get_driver_by_user_id(session=session, user_id=user_id) # check if driver exist for this user id
+    if driver is None:
+        raise create_404("Driver not found for this user")
+    
+    # Validate if driver has active assignment or not, if has active assignment then cannot accept new assignment until the current assignment is completed
+    current_assignment = await get_driver_active_assignment(session=session, driver_id=driver.id)
+    if current_assignment is not None:
+        raise create_400("Driver already has an active assignment")
+    
+
+    assignment = await get_assignment(session=session, assignment_id=assignment_id)
+    if assignment is None:
+        raise create_404("Driver assignment not found")
+    if assignment.driver_id != driver.id:
+        raise create_400("This assignment does not belong to the driver")
+    
+    
+    return await update_assignment_status(
+        session=session,
+        assignment_id=assignment_id,
+        data=DriverAssignmentStatusUpdate(status=DAStatus.ACCEPTED),
+    )
 
 async def update_assignment_status(
     session: AsyncSession,
@@ -312,6 +345,15 @@ async def update_assignment_status(
     # )
     return assignment
 
+async def unset_driver_assignment(session: AsyncSession,assignment_id:UUID):
+    assignment = await get_assignment(session=session,assignment_id=assignment_id)
+    if assignment is None:
+        raise create_404("Driver assignment not found")
+    assignment.driver_id=None
+    session.add(assignment)
+    await session.commit()
+    await session.refresh(assignment)
+    return assignment
 
 async def update_timout_history(session: AsyncSession,assignment_id:UUID,driver_id:UUID)-> DriverAssignmentHistory:
         his_statement= select(DriverAssignmentHistory).where(DriverAssignmentHistory.assignment_id==assignment_id,
@@ -417,15 +459,21 @@ async  def assignment_timeout(session: AsyncSession,assignment_id: int,):
     assignment = await get_assignment(session,assignment_id)
 
     if assignment.status != DAStatus.ACCEPTED:
+        
         # reassign next driver
         await update_timout_history(session=session,assignment_id=assignment_id,driver_id=assignment.driver_id)
-        await set_timeout_assign_driver(session,assignment_id)
+        await unset_driver_assignment(session=session,assignment_id=assignment_id)
         await connection_manager.send_json(
             room=get_assignment_room(str(assignment.driver_id)),
             payload={"type": "CANCELLED", 
                     "assignment_id": str(assignment_id)
                     },
         )
+        await set_timeout_assign_driver(session,assignment_id)
+        
+        # update_order_statement = 
+       
+       
         logger.info("Assignment timed out, reassigning...")
 
     

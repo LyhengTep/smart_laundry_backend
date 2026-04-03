@@ -67,12 +67,13 @@ async def create_assignment(
 @router.patch("/assignments/{assignment_id}/accept", response_model=DriverAssignmentRead)
 async def accept_assignment(
     assignment_id: UUID,
+    current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> DriverAssignmentRead:
-    return await svc.update_assignment_status(
+    return await svc.accept_assignment_api(
         session=session,
         assignment_id=assignment_id,
-        data=DriverAssignmentStatusUpdate(status=DAStatus.ACCEPTED),
+        user_id=UUID(current_user),
     )
 
 
