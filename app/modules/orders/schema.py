@@ -70,9 +70,12 @@ class OrderRead(SQLModel):
     created_at: datetime
     updated_at: datetime
     items: list[OrderItemRead]
-    customer: UserReadBasicRead | None
     model_config = {"from_attributes": True}
 
+class OrderReadWithCustomer(OrderRead):
+    customer: UserReadBasicRead | None
+    business: BusinessRead | None
+    model_config = {"from_attributes": True}
 
 
 class OrderReadV2(OrderRead):

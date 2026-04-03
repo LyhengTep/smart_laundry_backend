@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
     try:
       user: User
-      statement = select(User).where(User.user_name == data.login, User.role == data.role)
+      statement = select(User).where(User.user_name == data.login, User.role == data.role).options(selectinload(User.driver))
       if is_email(data.login):
         statement = select(User).where(User.email == data.login, User.role == data.role)
             # Update Driver status to ONLINE 
@@ -45,6 +45,7 @@ async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
          user.driver= driver
 
       user_data = UserRead.model_validate(user).model_dump(mode="json")
+      # print(f"User data {user_data}")
       response=LoginResponse(token=token, **user_data)
   
       return response
