@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.api.reponse_model import Page
 from app.core.firebase import send_firebase_message
+from app.db.engine import get_session, get_session_context
 from app.exceptions.http import create_400, create_404
 from app.modules.businesses.models import LaundryBusiness
 from app.modules.device_tokens.models import DeviceToken
@@ -115,7 +116,6 @@ async def edit_driver(session: AsyncSession, driver_id: UUID, data: DriverWrite)
 
     for key, value in data.user.model_dump(exclude_unset=True).items():
         setattr(driver.user, key, value)
-    
 
 
     print(f"edit driver {driver_id} with data {data} result {driver}")
@@ -202,7 +202,7 @@ async def list_assignments(
         pages=(total + size - 1) // size,
     )
 
-async def create_assignment_history(session: AsyncSession, driver_id: UUID,order_id: UUID,assignment_id:UUID,role:DARole,reason: str) -> DriverAssignmentHistory:
+async def create_assignment_history(session: AsyncSession, driver_id: UUID,order_id: UUID,assignment_id:UUID,role:DARole,reason: str=None) -> DriverAssignmentHistory:
 
     logger.info(f"calling to create assignment history with order id {order_id} driver id {driver_id} assignment id {assignment_id} role {role} reason {reason}")
     his_assignment = DriverAssignmentHistory(
@@ -310,7 +310,7 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
         assignment_id=assignment_id,
         data=DriverAssignmentStatusUpdate(status=DAStatus.ACCEPTED),
     )
-
+    print(f"accept assignment api with assignment data {assignment}")
     data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
 
     print(f"accept assignment api with assignment data {data}")
@@ -414,7 +414,7 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
 
 
     logger.info(f"Retrieved assignment with details: {assignment}")
-    await create_assignment_history(session=session,driver_id=drivers[0].id,role= assignment.role,order_id=assignment.order_id,assignment_id=assignment.id,reason="TIMEOUT")
+    await create_assignment_history(session=session,driver_id=drivers[0].id,role= assignment.role,order_id=assignment.order_id,assignment_id=assignment.id)
 
     # Get customer and to be refactor later
     customer_statement= select(User).where(User.id==assignment.order.customer_id)
@@ -446,31 +446,39 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
         send_firebase_message(token=device.token,title="New Assignment",body=f"You have a new {assignment.role.value} assignment",data={"assignment_id": str(assignment_id)})
 
     # await 
-    await asyncio.create_task(assignment_timeout(session,assignment_id))
+    await asyncio.create_task(assignment_timeout(assignment_id))
 
 
 # handle when driver dont accept assignment
-async  def assignment_timeout(session: AsyncSession,assignment_id: UUID,):
-    await asyncio.sleep(30)  # ⏱ 30 seconds
-    logger.info("called assigned")
-    assignment = await get_assignment(session,assignment_id)
-    logger.info(f"Fetched assignment for timeout check: {assignment}")
-    if assignment.status != DAStatus.ACCEPTED:
-        
-        # reassign next driver
-        await update_timout_history(session=session,assignment_id=assignment_id,driver_id=assignment.driver_id)
-        # logger.info(f"Assignment {assignment_id} timed out, unsetting driver assignment")
-        logger.info(f"Assignment {assignment.driver_id} timed out, unsetting driver assignment")
-        await connection_manager.send_json(
-            room=get_assignment_room(str(assignment.driver_id)),
-            payload={"role": "CANCELLED", 
-                    "assignment_id": str(assignment_id)
-                    },
-        )
-        await unset_driver_assignment(session=session,assignment_id=assignment_id)
-        await set_timeout_assign_driver(session,assignment_id)
-        
-        # update_order_statement = 
-        logger.info("Assignment timed out, reassigning...")
+async  def assignment_timeout(assignment_id: UUID,):
+
+    try:
+        async with get_session_context as session:
+            await asyncio.sleep(60) # wait for 1 minute before checking if the assignment is accepted or not
+            logger.info("called assigned")
+            assignment = await get_assignment(session,assignment_id)
+            logger.info(f"Driver assigment: {assignment}")
+            logger.info(f"Fetched assignment for timeout check: {assignment.status}")
+            if assignment.status != DAStatus.ACCEPTED:
+                
+                # reassign next driver
+                await update_timout_history(session=session,assignment_id=assignment_id,driver_id=assignment.driver_id)
+                # logger.info(f"Assignment {assignment_id} timed out, unsetting driver assignment")
+                logger.info(f"Assignment {assignment.driver_id} timed out, unsetting driver assignment")
+                await connection_manager.send_json(
+                    room=get_assignment_room(str(assignment.driver_id)),
+                    payload={"role": "CANCELLED", 
+                            "assignment_id": str(assignment_id)
+                            },
+                )
+                await unset_driver_assignment(session=session,assignment_id=assignment_id)
+                await set_timeout_assign_driver(session,assignment_id)
+                
+                # update_order_statement = 
+                logger.info("Assignment timed out, reassigning...")
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.error(f"Error in assignment timeout handling: {e}", exc_info=True)
 
     

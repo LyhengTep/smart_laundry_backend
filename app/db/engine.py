@@ -18,7 +18,7 @@ url = URL.create(
 )
 
 print("Database URL:",os.getenv("DATABASE_URL"))  # Debug print to check the URL being used
-engine = create_async_engine(os.getenv("DATABASE_URL"), echo=True)
+engine = create_async_engine(os.getenv("DATABASE_URL"), echo=False)
 
 async_session = async_sessionmaker(
     engine,
