@@ -41,7 +41,7 @@ services:
     container_name: smart-laundry-backend
     restart: unless-stopped
     # image: lyheng/smartlaundry_backend:0.0.1-dev.6
-    image: lyheng/smartlaundry_backend:62fc3d6f6b2ada9cf1a3e5e7d946eb8ef1b2fd7f
+    image: lyheng/smartlaundry_backend:7453e33d82e55912ab09bbd67b8aee4840d84c18
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`) || PathPrefix(`/public/uploads`)"
