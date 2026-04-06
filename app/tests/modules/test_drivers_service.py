@@ -126,6 +126,51 @@ def test_update_assignment_status_accepts_and_sets_driver_busy(monkeypatch: pyte
     assert websocket_events[0]["status"] == DAStatus.ACCEPTED.value
 
 
+def test_update_assignment_status_picked_up_keeps_driver_busy(monkeypatch: pytest.MonkeyPatch) -> None:
+    driver = build_driver()
+    assignment = build_assignment(driver_id=driver.id)
+    session = FakeAsyncSession(exec_results=[assignment], get_results=[driver])
+
+    async def fake_send_json(_room: str, _payload: dict) -> None:
+        return None
+
+    monkeypatch.setattr(driver_service.connection_manager, "send_json", fake_send_json)
+
+    result = run_async(
+        driver_service.update_assignment_status(
+            session=session,
+            assignment_id=assignment.id,
+            data=DriverAssignmentStatusUpdate(status=DAStatus.PICKED_UP),
+        )
+    )
+
+    assert result.status == DAStatus.PICKED_UP
+    assert driver.driver_status == DriverStatus.BUSY
+
+
+def test_update_assignment_status_delivered_sets_driver_online(monkeypatch: pytest.MonkeyPatch) -> None:
+    driver = build_driver()
+    driver.driver_status = DriverStatus.BUSY
+    assignment = build_assignment(driver_id=driver.id)
+    session = FakeAsyncSession(exec_results=[assignment], get_results=[driver])
+
+    async def fake_send_json(_room: str, _payload: dict) -> None:
+        return None
+
+    monkeypatch.setattr(driver_service.connection_manager, "send_json", fake_send_json)
+
+    result = run_async(
+        driver_service.update_assignment_status(
+            session=session,
+            assignment_id=assignment.id,
+            data=DriverAssignmentStatusUpdate(status=DAStatus.DELIVERED),
+        )
+    )
+
+    assert result.status == DAStatus.DELIVERED
+    assert driver.driver_status == DriverStatus.ONLINE
+
+
 def test_update_assignment_status_rejects_missing_assignment() -> None:
     session = FakeAsyncSession(exec_results=[None])
 

@@ -41,6 +41,8 @@ class DARole(str, Enum):
 
 class DAStatus(str,Enum): 
     ACCEPTED="ACCEPTED"
+    PICKED_UP="PICKED_UP"        # Going to customer
+    DELIVERED="DELIVERED"        # Delivering to destination
     REJECTED="REJECTED"
 
 class Driver(SQLModel, table=True):

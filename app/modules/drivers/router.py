@@ -36,9 +36,12 @@ async def list_assignments(
     status: DAStatus | None = Query(default=None),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
+    status_not_in: list[DAStatus]|None=Query(default=[]),
     # current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Page[DriverAssignmentRead]:
+    
+    print(f"status not in is {status_not_in}")
     return await svc.list_assignments(
         session=session,
         driver_id=driver_id,
@@ -47,7 +50,7 @@ async def list_assignments(
         status=status,
         page=page,
         size=size,
-
+        status_not_in=status_not_in
     )
 
 
@@ -86,6 +89,28 @@ async def reject_assignment(
         session=session,
         assignment_id=assignment_id,
         data=DriverAssignmentStatusUpdate(status=DAStatus.REJECTED),
+    )
+
+@router.patch("/assignments/{assignment_id}/picked-up", response_model=DriverAssignmentRead)
+async def picked_up_assignment(
+    assignment_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> DriverAssignmentRead:
+    return await svc.update_assignment_status(
+        session=session,
+        assignment_id=assignment_id,
+        data=DriverAssignmentStatusUpdate(status=DAStatus.PICKED_UP),
+    )
+
+
+@router.patch("/assignments/{assignment_id}/delivered", response_model=DriverAssignmentRead)
+async def delivered_assignment(
+    assignment_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> DriverAssignmentRead:
+    return await svc.deliver_assignment_api(
+        session=session,
+        assignment_id=assignment_id,
     )
 
 @router.get("/by-user/{user_id}", response_model=DriverRead)

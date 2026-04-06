@@ -21,8 +21,9 @@ from app.modules.drivers.schema import (
     DriverRead,
     DriverWrite,
 )
-from app.modules.orders.models import Order
-from app.modules.orders.schema import OrderRead, OrderReadV2
+from app.modules.orders.models import Order, OrderStatus
+from app.modules.orders.service import update_order_status
+from app.modules.orders.schema import OrderRead, OrderReadV2, OrderStatusUpdate
 from app.modules.users.models import User, UserStatus
 from app.modules.realtime.manager import connection_manager
 import asyncio
@@ -161,6 +162,7 @@ async def list_assignments(
     order_id: UUID | None = None,
     role: DARole | None = None,
     status: DAStatus | None = None,
+    status_not_in: list[DAStatus]=[],
     page: int = 1,
     size: int = 10,
     # user_id: uuid.UUID
@@ -178,7 +180,10 @@ async def list_assignments(
                                                                                                                          selectinload(DriverAssignment.order).selectinload(Order.customer),
                                                                                                                          selectinload(DriverAssignment.order).selectinload(Order.business))
     count_statement = select(func.count(DriverAssignment.id))
-
+    logger.info(f"status not in {status_not_in} and {len(status_not_in)}")
+    if len(status_not_in)>0:
+        statement = statement.where(DriverAssignment.status.notin_(status_not_in))
+        count_statement = count_statement.where(DriverAssignment.status.notin_(status_not_in))
     if driver_id is not None:
         statement = statement.where(DriverAssignment.driver_id == driver_id)
         count_statement = count_statement.where(DriverAssignment.driver_id == driver_id)
@@ -269,15 +274,6 @@ async def create_assignment_api(session: AsyncSession, data: DriverAssignmentCre
         role=data.role,
         driver_id=data.driver_id,
     )
-    # await connection_manager.send_json(
-    #     get_assignment_room(str(data.driver_id)),
-    #     {
-    #         "event": "driver_assignment_created",
-    #         "assignment_id": str(assignment.id),
-    #         "order_id": str(assignment.order_id),
-    #         "role": assignment.role.value if assignment.role else None,
-    #     },
-    # )
     return assignment
 
 async def get_driver_active_assignment(session: AsyncSession, driver_id: UUID) -> DriverAssignmentRead | None:
@@ -305,17 +301,59 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
         raise create_404("Driver assignment not found")
     if assignment.driver_id != driver.id:
         raise create_400("This assignment does not belong to the driver")
+    
+    order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=OrderStatus.PICKUP_ASSIGNED))
+    logger.info(f"Updated order status to PICKUP_ASSIGNED for order {order.id} when accepting assignment {assignment_id}")
     assignment = await update_assignment_status(
         session=session,
         assignment_id=assignment_id,
         data=DriverAssignmentStatusUpdate(status=DAStatus.ACCEPTED),
     )
+    
     print(f"accept assignment api with assignment data {assignment}")
     data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
 
     print(f"accept assignment api with assignment data {data}")
     
     return data
+
+# when pickup order status is update to OrderStatus.PICKED_UP and assignment is PICKED_UP
+async def pickup_assignment_api(session: AsyncSession, assignment_id: UUID,user_id: UUID=None)->DriverAssignmentRead:
+    assignment = await get_assignment(session=session, assignment_id=assignment_id)
+
+    if assignment is None: 
+        raise create_404("Assignment is not found")
+    
+    order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=OrderStatus.PICKED_UP))
+    logger.info(f"Order after updated {order}")
+    assignment = await update_assignment_status(
+        session=session,
+        assignment_id=assignment_id,
+        data=DriverAssignmentStatusUpdate(status=DAStatus.PICKED_UP),
+    )
+    data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
+    return data
+
+
+# when pickup order status is update to OrderStatus.DELIVERED_TO_SHOP and assignment is DELIVERED
+async def deliver_assignment_api(session: AsyncSession, assignment_id: UUID,user_id: UUID=None)->DriverAssignmentRead:
+   
+    assignment = await get_assignment(session=session, assignment_id=assignment_id)
+    logger.info(f"call for deliver assignment {assignment}")
+    if assignment is None: 
+        raise create_404("Assignment is not found")
+    
+    order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=OrderStatus.DELIVERED_TO_SHOP))
+    logger.info(f"Order after updated {order}")
+    assignment = await update_assignment_status(
+        session=session,
+        assignment_id=assignment_id,
+        data=DriverAssignmentStatusUpdate(status=DAStatus.DELIVERED),
+    )
+    data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
+    return data
+
+
 
 async def update_assignment_status(
     session: AsyncSession,
@@ -333,6 +371,10 @@ async def update_assignment_status(
     if driver is not None:
         if data.status == DAStatus.ACCEPTED:
             driver.driver_status = DriverStatus.BUSY
+        elif data.status == DAStatus.PICKED_UP:
+            driver.driver_status = DriverStatus.BUSY
+        elif data.status == DAStatus.DELIVERED:
+            driver.driver_status = DriverStatus.ONLINE
         elif data.status == DAStatus.REJECTED:
             driver.driver_status = DriverStatus.ONLINE
         session.add(driver)
