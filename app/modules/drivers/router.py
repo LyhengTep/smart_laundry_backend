@@ -96,10 +96,9 @@ async def picked_up_assignment(
     assignment_id: UUID,
     session: AsyncSession = Depends(get_session),
 ) -> DriverAssignmentRead:
-    return await svc.update_assignment_status(
+    return await svc.pickup_assignment_api(
         session=session,
         assignment_id=assignment_id,
-        data=DriverAssignmentStatusUpdate(status=DAStatus.PICKED_UP),
     )
 
 
