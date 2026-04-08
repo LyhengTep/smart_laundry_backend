@@ -5,6 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.reponse_model import Page
 from app.db.engine import get_session
+from app.lib.security import get_current_user
 from app.modules.orders import service as svc
 from app.modules.orders.models import OrderStatus
 from app.modules.orders.schema import OrderCreate, OrderPricingUpdate, OrderRead, OrderStatusUpdate
@@ -47,9 +48,10 @@ async def create_order(data: OrderCreate, session: AsyncSession = Depends(get_se
 async def update_order_status(
     order_id: UUID,
     data: OrderStatusUpdate,
+    current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> OrderRead:
-    return await svc.update_order_status(order_id=order_id, data=data, session=session)
+    return await svc.update_order_status_api(order_id=order_id, data=data, session=session,current_user_id=current_user)
 
 
 @router.patch("/{order_id}/pricing", response_model=OrderRead)

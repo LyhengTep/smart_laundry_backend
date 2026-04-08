@@ -1,5 +1,6 @@
 from __future__ import annotations
 from uuid import UUID
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.exceptions.http import create_404
@@ -8,6 +9,9 @@ from app.modules.users.schema import UserMsgTokenUpdate, UserRead, UserWrite
 from app.shared.passwords import hash_password
 import logging
 
+
+
+logger=logging.getLogger(__name__)
 async def list_users(session: AsyncSession) -> list[UserRead]:
     result = await session.exec(select(User))
     return result.all()
@@ -57,7 +61,10 @@ async def update_user_msg_token(
     data: UserMsgTokenUpdate,
     session: AsyncSession,
 ) -> UserRead:
-    user = await session.get(User, user_id)
+    logger.info(f"---------------------call add token {user_id}---------------------")
+    statement = select(User).where(User.id==user_id).options(selectinload(User.driver))
+    user_res = await session.exec(statement)
+    user= user_res.one_or_none
     if user is None:
         raise create_404("User not found")
 
