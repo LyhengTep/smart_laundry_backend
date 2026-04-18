@@ -3,6 +3,7 @@ from math import log
 from uuid import UUID
 import uuid
 from alembic.command import current
+from google_crc32c import value
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -11,10 +12,12 @@ from app.api.reponse_model import Page
 from app.core.firebase import send_firebase_message
 from app.db.engine import get_session, get_session_context
 from app.exceptions.http import create_400, create_404
+from app.lib.datetime import calulate_remaining_time
 from app.modules.businesses.models import LaundryBusiness
 from app.modules.device_tokens.models import DeviceToken
 from app.modules.drivers.models import DARole, DAStatus, Driver, DriverAssignment, DriverAssignmentHistory, DriverStatus
 from app.modules.drivers.schema import (
+    ActiveAssignmentResponse,
     DriverAssignmentCreate,
     DriverAssignmentRead,
     DriverAssignmentStatusUpdate,
@@ -22,7 +25,7 @@ from app.modules.drivers.schema import (
     DriverWrite,
 )
 from app.modules.orders.models import Order, OrderStatus
-from app.modules.orders.service import update_order_status
+from app.modules.orders.service import update_order_status, update_order_status_api
 from app.modules.orders.schema import OrderRead, OrderReadV2, OrderStatusUpdate
 from app.modules.users.models import User, UserStatus
 from app.modules.realtime.manager import connection_manager
@@ -106,6 +109,7 @@ async def suspend_driver(session: AsyncSession, driver_id: str) -> DriverRead:
     return driver
 
 
+
 async def edit_driver(session: AsyncSession, driver_id: UUID, data: DriverWrite) -> DriverRead:
     result = await session.exec(select(Driver).where(Driver.id == driver_id).options(selectinload(Driver.user)))
     driver = result.one_or_none()
@@ -153,6 +157,23 @@ async def create_assignment(session: AsyncSession, order_id: UUID,role:DARole,dr
     await session.commit()
     await session.refresh(assignment)
     return assignment
+
+async def get_assigned_order(session:AsyncSession, current_user:UUID)->ActiveAssignmentResponse:
+    driver= await get_driver_by_user_id(session,current_user)
+    statement = assignment_detail_query_builder().where(DriverAssignment.driver_id==driver.id,DriverAssignment.status==None)
+
+    ass_res = await session.exec(statement)
+
+    res= ass_res.one_or_none()
+
+    if res is None:
+        raise create_404("Assigned package is not found")
+
+    time_remaining= calulate_remaining_time(assigned_time=res.assignedAt,expired_in_sec=60)
+    logger.info(f"assigned order time remaining is {time_remaining}")
+    active_ass= ActiveAssignmentResponse(assignment=res,timeout=time_remaining)
+    return active_ass
+
 
 
 async def list_assignments(
@@ -254,6 +275,12 @@ async def get_assignment_with_details_v2(session: AsyncSession,assignment_id)-> 
     logger.info(f"Retrieved assignment with details: {assignment}")
     return assignment
 
+
+
+def assignment_detail_query_builder():
+    return (select(DriverAssignment).options(selectinload(DriverAssignment.order).selectinload(Order.items),
+                                                                                              selectinload(DriverAssignment.order).selectinload(Order.business),
+                                                                                              selectinload(DriverAssignment.order).selectinload(Order.customer).selectinload(User.driver)))
 async def get_assignment_by_id(session: AsyncSession, assignment_id: UUID) -> DriverAssignmentRead:
     assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     if assignment is None:
@@ -286,6 +313,8 @@ async def get_driver_active_assignment(session: AsyncSession, driver_id: UUID) -
     return assignment
 
 async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_id: UUID) -> DriverAssignmentRead:
+
+    logger.info(f"called assignment accept api {assignment_id}")
     driver = await get_driver_by_user_id(session=session, user_id=user_id) # check if driver exist for this user id
     if driver is None:
         raise create_404("Driver not found for this user")
@@ -334,16 +363,32 @@ async def pickup_assignment_api(session: AsyncSession, assignment_id: UUID,user_
     data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
     return data
 
-
 # when pickup order status is update to OrderStatus.DELIVERED_TO_SHOP and assignment is DELIVERED
-async def deliver_assignment_api(session: AsyncSession, assignment_id: UUID,user_id: UUID=None)->DriverAssignmentRead:
+async def update_assignment_status_api(session: AsyncSession, assignment_id: UUID,status:DAStatus,order_status:OrderStatus, current_user: UUID=None)->DriverAssignmentRead:
    
     assignment = await get_assignment(session=session, assignment_id=assignment_id)
     logger.info(f"call for deliver assignment {assignment}")
     if assignment is None: 
         raise create_404("Assignment is not found")
     
-    order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=OrderStatus.DELIVERED_TO_SHOP))
+    order = await update_order_status_api(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=order_status),current_user_id=current_user)
+    logger.info(f"Order after updated {order}")
+    assignment = await update_assignment_status(
+        session=session,
+        assignment_id=assignment_id,
+        data=DriverAssignmentStatusUpdate(status=status),
+    )
+    data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
+    return data
+# when pickup order status is update to OrderStatus.DELIVERED_TO_SHOP and assignment is DELIVERED
+async def deliver_assignment_api(session: AsyncSession, assignment_id: UUID,current_user: UUID=None)->DriverAssignmentRead:
+   
+    assignment = await get_assignment(session=session, assignment_id=assignment_id)
+    logger.info(f"call for deliver assignment {assignment}")
+    if assignment is None: 
+        raise create_404("Assignment is not found")
+    
+    order = await update_order_status_api(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=OrderStatus.DELIVERED_TO_SHOP),current_user_id=current_user)
     logger.info(f"Order after updated {order}")
     assignment = await update_assignment_status(
         session=session,
@@ -467,6 +512,7 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
     shop_statement= select(LaundryBusiness).where(LaundryBusiness.id==assignment.order.business_id)
     shop_res =await session.exec(shop_statement)
     shop = shop_res.one_or_none()
+    remaining_time = calulate_remaining_time(assigned_time=assignment.assignedAt,expired_in_sec=60)
     # Broadcast Websocket to driver
 
     order_data =OrderReadV2.model_validate(assignment.order).model_dump(mode="json")
@@ -476,6 +522,7 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
         payload={"role": assignment.role, 
                  "id": str(assignment_id),
                  "order":order_data,
+                "timeout":remaining_time
                  },
     )
 
@@ -495,14 +542,14 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
 async  def assignment_timeout(assignment_id: UUID,):
 
     try:
-        async with get_session_context as session:
+        async with get_session_context() as session:
             await asyncio.sleep(60) # wait for 1 minute before checking if the assignment is accepted or not
             logger.info("called assigned")
             assignment = await get_assignment(session,assignment_id)
             logger.info(f"Driver assigment: {assignment}")
             logger.info(f"Fetched assignment for timeout check: {assignment.status}")
             if assignment.status != DAStatus.ACCEPTED:
-                
+                logger.info(f"No driver pickup assignment {assignment_id}")
                 # reassign next driver
                 await update_timout_history(session=session,assignment_id=assignment_id,driver_id=assignment.driver_id)
                 # logger.info(f"Assignment {assignment_id} timed out, unsetting driver assignment")

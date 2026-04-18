@@ -14,15 +14,16 @@ security = HTTPBearer()
 
 
 def get_current_user(token: HTTPAuthorizationCredentials = Depends(security)):
+    print("called get current user")
     try:
         payload = jwt.decode(token.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("sub")
         logging.info("Decoded JWT payload: %s", payload)
         if user_id is None:
-            raise create_401()
+            raise create_401("User is not found")
         return user_id
-    except JWTError:
-        raise create_401()
+    except JWTError as e:
+        raise create_401(f"error {e}")
 
 
 def hash_password(pw: str) -> str:

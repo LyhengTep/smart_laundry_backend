@@ -64,10 +64,10 @@ async def update_user_msg_token(
     logger.info(f"---------------------call add token {user_id}---------------------")
     statement = select(User).where(User.id==user_id).options(selectinload(User.driver))
     user_res = await session.exec(statement)
-    user= user_res.one_or_none
+    user= user_res.one_or_none()
     if user is None:
         raise create_404("User not found")
-
+    logger.info(f"user token is {data.msg_token}")
     user.msg_token = data.msg_token
     session.add(user)
     await session.commit()

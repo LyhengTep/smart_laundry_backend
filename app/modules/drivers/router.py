@@ -8,6 +8,7 @@ from app.db.engine import get_session
 from app.lib.security import get_current_user
 from app.modules.drivers.models import DARole, DAStatus
 from app.modules.drivers.schema import (
+    ActiveAssignmentResponse,
     DriverAssignmentCreate,
     DriverAssignmentRead,
     DriverAssignmentStatusUpdate,
@@ -15,6 +16,7 @@ from app.modules.drivers.schema import (
     DriverWrite,
 )
 from app.modules.drivers import service as svc
+from app.modules.orders.models import OrderStatus
 from app.modules.users.models import UserStatus
 from app.modules.users.schema import UserRead, UserWrite
 
@@ -95,10 +97,14 @@ async def reject_assignment(
 async def picked_up_assignment(
     assignment_id: UUID,
     session: AsyncSession = Depends(get_session),
+    current_user: str = Depends(get_current_user),
 ) -> DriverAssignmentRead:
-    return await svc.pickup_assignment_api(
+    return await svc.update_assignment_status_api(
         session=session,
         assignment_id=assignment_id,
+        current_user=current_user,
+        status=DAStatus.PICKED_UP,
+        order_status=OrderStatus.PICKED_UP
     )
 
 
@@ -106,10 +112,14 @@ async def picked_up_assignment(
 async def delivered_assignment(
     assignment_id: UUID,
     session: AsyncSession = Depends(get_session),
+    current_user: str = Depends(get_current_user),
 ) -> DriverAssignmentRead:
-    return await svc.deliver_assignment_api(
+    return await svc.update_assignment_status_api(
         session=session,
         assignment_id=assignment_id,
+        current_user=current_user,
+        status=DAStatus.DELIVERED,
+        order_status=OrderStatus.DELIVERED_TO_SHOP
     )
 
 @router.get("/by-user/{user_id}", response_model=DriverRead)
@@ -137,6 +147,12 @@ async def reject_driver(driver_id: UUID,session: AsyncSession = Depends(get_sess
 @router.patch("/{driver_id}/suspend",response_model=DriverRead)
 async def suspend_driver(driver_id: UUID,session: AsyncSession = Depends(get_session))->DriverRead:
     return await svc.suspend_driver(session,driver_id)
+
+
+@router.get("/pending/get-current-assignment",response_model=ActiveAssignmentResponse)
+async def get_assigned_order(session: AsyncSession = Depends(get_session), current_user: str = Depends(get_current_user))->ActiveAssignmentResponse:
+    print("called get assigned order")
+    return await svc.get_assigned_order(session,current_user)
 
 
 # @router.get("/{user_id}")

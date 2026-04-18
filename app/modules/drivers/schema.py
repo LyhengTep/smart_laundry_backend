@@ -1,6 +1,7 @@
 
 
 from datetime import datetime
+from socket import timeout
 from uuid import UUID
 from sqlmodel import SQLModel
 
@@ -37,6 +38,7 @@ class DriverAssignmentCreate(SQLModel):
     role: DARole
 
 
+
 class DriverAssignmentRead(SQLModel):
     id: UUID
     driver_id: UUID
@@ -48,6 +50,12 @@ class DriverAssignmentRead(SQLModel):
     order: OrderReadWithCustomer | None
     created_at: datetime
     updated_at: datetime
+
+
+
+class ActiveAssignmentResponse(SQLModel):
+    assignment: DriverAssignmentRead
+    timeout: int
 
 
 class DriverAssignmentStatusUpdate(SQLModel):

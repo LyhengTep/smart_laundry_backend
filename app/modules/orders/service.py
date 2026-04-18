@@ -15,6 +15,7 @@ from app.core.config import TOPIC_PICKUP_ASSIGNMENT
 from app.core.firebase import send_firebase_message
 from app.exceptions.http import create_400, create_404
 from app.lib.aws import send_sqs_message
+from app.modules.device_tokens.models import DeviceToken
 from app.modules.drivers.models import DARole
 from app.modules.realtime.manager import connection_manager
 from app.modules.business_services.model import BusinessService
@@ -29,7 +30,7 @@ from app.modules.orders.schema import (
 )
 from app.modules.users.models import RoleName, User
 from app.modules.drivers import service as driver
-from app.shared.common import utc_now
+from app.shared.common import get_notification_template, get_notification_title, utc_now
 
 logger=logging.getLogger(__name__)
 ORDER_STATUS_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
@@ -260,26 +261,40 @@ async def create_order(session: AsyncSession, data: OrderCreate) -> OrderRead:
 
 
 
+async def notification_processor(order:Order,current_user_id:UUID,session:AsyncSession): 
+    try:
+
+        customer_notification_types=[OrderStatus.CANCELLED,OrderStatus.DELIVERED_TO_SHOP]
+        logger.info(f"checking status if work correctly {order.status} {order.status in customer_notification_types}")
+        # Case 1: Send Notification to customer when shop reject their order
+        if order.status in customer_notification_types:
+            
+            statement= select(DeviceToken).where(DeviceToken.user_id==order.customer_id)
+            res= await session.exec(statement)
+            device= res.first()
+
+            logger.info(f"Call token and user check for customer {type(order.customer_id)} current_user: {type(current_user_id)} conditional check {order.customer_id!=current_user_id}")
+            if device is not None and str(order.customer_id)!=current_user_id:
+                send_firebase_message(
+                    token=device.token,
+                    title=get_notification_title(order.status),
+                    body=get_notification_template(order.status,order_no=order.order_no)
+                )
+
+
+    except Exception as e: 
+        logger.error(f"Unknown error in notification processor {e}")
+
 async def update_order_status_api(order_id: UUID,
     data: OrderStatusUpdate,
     session: AsyncSession,current_user_id: UUID)->OrderRead:
 
     order = await update_order_status(order_id=order_id,data= data,session=session)
+    logger.info(f"called update order status api {order}")
+    #Process notification based on status
+    await notification_processor(order=order,current_user_id=current_user_id,session=session)
    
-    # Send Notification to customer when shop reject their order
-    if data.status== OrderStatus.CANCELLED:
-        statement= select(User).where(User.id==order.customer_id)
-        res= await session.exec(statement)
-        user= res.first()
-        logger.info(f"Call token and user check for customer {type(order.customer_id)} current_user: {type(current_user_id)} conditional check {order.customer_id!=current_user_id}")
-        if user is not None and str(order.customer_id)!=current_user_id:
-            send_firebase_message(
-                token=user.msg_token,
-                title=f"Order Cancelled",
-                body=f"Your order no {order.order_no} was cancelled"
-            )
-
-        # Broadcast event to pickup assignment service when order is confirmed, so that it can assign driver for pickup
+    # Broadcast event to pickup assignment service when order is confirmed, so that it can assign driver for pickup
     if data.status == OrderStatus.CONFIRMED:
             send_sqs_message(
                     queue_name=TOPIC_PICKUP_ASSIGNMENT,
