@@ -1,11 +1,12 @@
 
+from datetime import datetime
 import logging
 from math import log
 from uuid import UUID
 import uuid
 from sentry_sdk import session
 from sentry_sdk.utils import now
-from sqlalchemy import func
+from sqlalchemy import func,and_, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,18 +19,29 @@ from app.modules.businesses.schema import BusinessRead, BusinessUpdate, Business
 
 from app.modules.users.models import User, UserStatus
 
-async def list_businesses(session: AsyncSession, page: int, size: int,status: UserStatus) -> Page[BusinessRead]:
+async def list_businesses(session: AsyncSession, page: int, size: int,status: UserStatus,is_open:bool=None, q:str=None) -> Page[BusinessRead]:
 
     offset= (page-1)*size
 
     print(f"offset value {page} {size} {offset}")
 
     statement= select(LaundryBusiness).join(User).offset(offset).limit(size).where(LaundryBusiness.status!=ShopStatus.DEACTIVATED).options(selectinload(LaundryBusiness.owner))
-
+    
     count_statement= select(func.count(LaundryBusiness.id)).join(User)
     if status: 
         statement= statement.where(User.status==status)
         count_statement= count_statement.where(User.status==status)
+
+    if is_open:
+        now = datetime.now().time()
+        statement= statement.where(and_(
+            LaundryBusiness.open_time<=LaundryBusiness.close_time,
+            LaundryBusiness.open_time <= now,
+            LaundryBusiness.close_time >= now
+        ))
+
+    if q: 
+        statement =statement.where(LaundryBusiness.name.ilike(f"%{q}%"))
     total_result = await session.exec(count_statement)
     total = total_result.one()
     print(f"total result count {status}")
@@ -122,9 +134,6 @@ async def create_business( data: BusinessWrite,current_user: uuid.UUID,session: 
      await session.commit()
      await session.refresh(business)
      return BusinessRead.model_validate(business)
-
-
-
 
 async def remove_business(business_id: UUID, current_user: uuid.UUID, session: AsyncSession) -> None:
     business_result = await session.exec(select(LaundryBusiness).where(LaundryBusiness.id == business_id))

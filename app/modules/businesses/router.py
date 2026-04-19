@@ -17,9 +17,13 @@ router = APIRouter(prefix="/businesses", tags=["businesses"])
 @router.get("/",response_model=Page[BusinessRead])
 async def list_businesses(page: int =Query(1,ge=1),size: int=Query(10,ge=1,le=100),
                        status: Optional[UserStatus]=Query(None),
-                       session: AsyncSession = Depends(get_session))->list[BusinessRead]:
+                       is_open: Optional[bool]=Query(None),
+                       q: Optional[str]=Query(None),
+                       session: AsyncSession = Depends(get_session)
+                       
+                       )->list[BusinessRead]:
 
-    return await svc.list_businesses(session,page,size,status)
+    return await svc.list_businesses(session,page,size,status,is_open,q)
 
 
 @router.get("/{business_id}",response_model=SingleBusinessRead)
