@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from app.modules.drivers import service as driver_service
 from app.modules.drivers.models import DAStatus, DARole, Driver, DriverAssignment, DriverAssignmentHistory, DriverStatus
 from app.modules.drivers.schema import DriverAssignmentCreate, DriverAssignmentStatusUpdate, DriverWrite
+from app.modules.orders.models import OrderStatus
 from app.modules.users.models import RoleName, User, UserStatus
 from app.modules.users.schema import UserEdit
 from app.tests.modules.conftest import FakeAsyncSession, run_async
@@ -184,6 +185,28 @@ def test_update_assignment_status_rejects_missing_assignment() -> None:
         )
 
     assert exc.value.status_code == 404
+
+
+def test_resolve_assignment_order_status_for_picked_up() -> None:
+    assert (
+        driver_service.resolve_assignment_order_status(OrderStatus.PICKUP_ASSIGNED, DAStatus.PICKED_UP)
+        == OrderStatus.PICKED_UP
+    )
+    assert (
+        driver_service.resolve_assignment_order_status(OrderStatus.DELIVERY_ASSIGNED, DAStatus.PICKED_UP)
+        == OrderStatus.OUT_FOR_DELIVERY
+    )
+
+
+def test_resolve_assignment_order_status_for_delivered() -> None:
+    assert (
+        driver_service.resolve_assignment_order_status(OrderStatus.PICKED_UP, DAStatus.DELIVERED)
+        == OrderStatus.DELIVERED_TO_SHOP
+    )
+    assert (
+        driver_service.resolve_assignment_order_status(OrderStatus.OUT_FOR_DELIVERY, DAStatus.DELIVERED)
+        == OrderStatus.DELIVERED
+    )
 
 
 

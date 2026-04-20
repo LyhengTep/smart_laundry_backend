@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 from httpx import get
 from sqlmodel import Session
 from starlette.staticfiles import StaticFiles
-from app.consumer.worker import consume
+from app.consumer.worker import consume, consume_queue
+from app.core.config import TOPIC_DELIVERY_ASSIGNMENT, TOPIC_PICKUP_ASSIGNMENT
 from app.db import engine
 from app.core.firebase import initialize_firebase
 from app.db.init_db import init_db
@@ -40,10 +41,17 @@ async def lifespan(app: FastAPI):
             await seed_laundry_service(session)
     # yield
     sem = asyncio.Semaphore(10) 
-    task = asyncio.create_task(consume(sem))
-    yield
-    task.cancel()
-    await asyncio.gather(task, return_exceptions=True)
+
+
+    queue_names =[TOPIC_PICKUP_ASSIGNMENT,TOPIC_DELIVERY_ASSIGNMENT]
+    tasks = asyncio.gather(*[consume_queue(name, asyncio.Semaphore(10)) for name in queue_names])
+
+    # task = asyncio.create_task(consume(sem))
+    try:
+        yield
+    finally:
+        for task in tasks:
+            task.cancel()
 
 
 app = FastAPI(lifespan=lifespan,title="Smart Laundry API")

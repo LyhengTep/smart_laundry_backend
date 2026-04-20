@@ -33,12 +33,13 @@ async def list_businesses(session: AsyncSession, page: int, size: int,status: Us
         count_statement= count_statement.where(User.status==status)
 
     if is_open:
+        statuses = [ShopStatus.APPROVED,ShopStatus.OPEN]
         now = datetime.now().time()
         statement= statement.where(and_(
             LaundryBusiness.open_time<=LaundryBusiness.close_time,
             LaundryBusiness.open_time <= now,
             LaundryBusiness.close_time >= now
-        ))
+        ),LaundryBusiness.status.in_(statuses))
 
     if q: 
         statement =statement.where(LaundryBusiness.name.ilike(f"%{q}%"))

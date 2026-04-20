@@ -10,8 +10,8 @@ import logging
 from httpx import get
 
 
-from app.consumer.handlers.assignment_handler import handle_pickup_assignment
-from app.core.config import TOPIC_PICKUP_ASSIGNMENT
+from app.consumer.handlers.assignment_handler import handle_delivery_assignment, handle_pickup_assignment
+from app.core.config import TOPIC_DELIVERY_ASSIGNMENT, TOPIC_PICKUP_ASSIGNMENT
 from app.lib.aws import get_or_create_queue, get_sqs_client
 
 
@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 HANDLERS={
     "PICKUP": handle_pickup_assignment,
+    "DELIVERY":handle_delivery_assignment
+}
+
+DELIVERY_TOPIC={
+    "PICKUP": TOPIC_PICKUP_ASSIGNMENT,
+    "DELIVERY":TOPIC_DELIVERY_ASSIGNMENT
 }
 
 
@@ -44,9 +50,10 @@ async def process_message(message: dict, sem: asyncio.Semaphore) -> None:
         finally:
             print(f"Deleting message {message['MessageId']} from queue")
             sqs_client = get_sqs_client()
+
             # Delete the message from the queue after processing
             sqs_client.delete_message(
-                QueueUrl=get_or_create_queue(queue_name=TOPIC_PICKUP_ASSIGNMENT,sqs=sqs_client),
+                QueueUrl=get_or_create_queue(queue_name=DELIVERY_TOPIC[event_type],sqs=sqs_client),
                 ReceiptHandle=message['ReceiptHandle']
             )
 
@@ -81,4 +88,41 @@ async def consume(sem: asyncio.Semaphore) -> None:
         except Exception as e:
             logger.error(f"Poll loop error: {e}", exc_info=True)
             await asyncio.sleep(5)
+
+
+
+
+async def consume_queue(queue_name:str, sem: asyncio.Semaphore):
+    def poll():
+        sqs_client = get_sqs_client()
+        topic_url = get_or_create_queue(queue_name=queue_name, sqs=sqs_client)
+        return sqs_client.receive_message(
+            QueueUrl=topic_url,
+            MaxNumberOfMessages=10,
+            WaitTimeSeconds=20
+        ).get("Messages", [])
+    
+
+    logger.info("SQS consumer started")
+    loop = asyncio.get_event_loop()
+    while True:
+        try:
+            messages = await loop.run_in_executor(None, poll)
+
+            if not messages:
+                continue
+
+            logger.debug(f"Received {len(messages)} message(s)")
+            await asyncio.gather(
+                *[process_message(m, sem) for m in messages]
+            )
+            await asyncio.sleep(1)  
+        except asyncio.CancelledError:
+            logger.info("SQS consumer shutting down gracefully")
+            break
+
+        except Exception as e:
+            logger.error(f"Poll loop error: {e}", exc_info=True)
+            await asyncio.sleep(5)
+
 

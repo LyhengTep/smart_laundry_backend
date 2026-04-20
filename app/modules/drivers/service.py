@@ -25,7 +25,7 @@ from app.modules.drivers.schema import (
     DriverWrite,
 )
 from app.modules.orders.models import Order, OrderStatus
-from app.modules.orders.service import update_order_status, update_order_status_api
+from app.modules.orders.service import get_order_by_id, update_order_status, update_order_status_api
 from app.modules.orders.schema import OrderRead, OrderReadV2, OrderStatusUpdate
 from app.modules.users.models import User, UserStatus
 from app.modules.realtime.manager import connection_manager
@@ -330,8 +330,15 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
         raise create_404("Driver assignment not found")
     if assignment.driver_id != driver.id:
         raise create_400("This assignment does not belong to the driver")
+    order= await get_order_by_id(order_id=assignment.order_id,session=session)
+
+    order_status=OrderStatus.PICKUP_ASSIGNED
+
+    if order.status==OrderStatus.READY_FOR_DELIVERY:
+        order_status=OrderStatus.DELIVERY_ASSIGNED
+
+    order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=order_status))
     
-    order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=OrderStatus.PICKUP_ASSIGNED))
     logger.info(f"Updated order status to PICKUP_ASSIGNED for order {order.id} when accepting assignment {assignment_id}")
     assignment = await update_assignment_status(
         session=session,
@@ -352,26 +359,46 @@ async def pickup_assignment_api(session: AsyncSession, assignment_id: UUID,user_
 
     if assignment is None: 
         raise create_404("Assignment is not found")
-    
-    order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=OrderStatus.PICKED_UP))
-    logger.info(f"Order after updated {order}")
-    assignment = await update_assignment_status(
+
+    return await update_assignment_status_api(
         session=session,
         assignment_id=assignment_id,
-        data=DriverAssignmentStatusUpdate(status=DAStatus.PICKED_UP),
+        status=DAStatus.PICKED_UP,
+        current_user=user_id,
     )
-    data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
-    return data
 
 # when pickup order status is update to OrderStatus.DELIVERED_TO_SHOP and assignment is DELIVERED
-async def update_assignment_status_api(session: AsyncSession, assignment_id: UUID,status:DAStatus,order_status:OrderStatus, current_user: UUID=None)->DriverAssignmentRead:
+def resolve_assignment_order_status(current_status: OrderStatus, assignment_status: DAStatus) -> OrderStatus:
+    if assignment_status == DAStatus.PICKED_UP:
+        if current_status == OrderStatus.PICKUP_ASSIGNED:
+            return OrderStatus.PICKED_UP
+        if current_status == OrderStatus.DELIVERY_ASSIGNED:
+            return OrderStatus.OUT_FOR_DELIVERY
+    if assignment_status == DAStatus.DELIVERED:
+        if current_status == OrderStatus.PICKED_UP:
+            return OrderStatus.DELIVERED_TO_SHOP
+        if current_status == OrderStatus.OUT_FOR_DELIVERY:
+            return OrderStatus.DELIVERED
+
+    raise create_400(
+        f"Assignment status {assignment_status.value} is not allowed when order status is {current_status.value}"
+    )
+
+
+async def update_assignment_status_api(session: AsyncSession, assignment_id: UUID,status:DAStatus, current_user: UUID=None)->DriverAssignmentRead:
    
-    assignment = await get_assignment(session=session, assignment_id=assignment_id)
+    assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     logger.info(f"call for deliver assignment {assignment}")
     if assignment is None: 
         raise create_404("Assignment is not found")
-    
-    order = await update_order_status_api(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=order_status),current_user_id=current_user)
+
+    next_order_status = resolve_assignment_order_status(assignment.order.status, status)
+    order = await update_order_status_api(
+        session=session,
+        order_id=assignment.order_id,
+        data=OrderStatusUpdate(status=next_order_status),
+        current_user_id=current_user,
+    )
     logger.info(f"Order after updated {order}")
     assignment = await update_assignment_status(
         session=session,
@@ -382,21 +409,12 @@ async def update_assignment_status_api(session: AsyncSession, assignment_id: UUI
     return data
 # when pickup order status is update to OrderStatus.DELIVERED_TO_SHOP and assignment is DELIVERED
 async def deliver_assignment_api(session: AsyncSession, assignment_id: UUID,current_user: UUID=None)->DriverAssignmentRead:
-   
-    assignment = await get_assignment(session=session, assignment_id=assignment_id)
-    logger.info(f"call for deliver assignment {assignment}")
-    if assignment is None: 
-        raise create_404("Assignment is not found")
-    
-    order = await update_order_status_api(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=OrderStatus.DELIVERED_TO_SHOP),current_user_id=current_user)
-    logger.info(f"Order after updated {order}")
-    assignment = await update_assignment_status(
+    return await update_assignment_status_api(
         session=session,
         assignment_id=assignment_id,
-        data=DriverAssignmentStatusUpdate(status=DAStatus.DELIVERED),
+        status=DAStatus.DELIVERED,
+        current_user=current_user,
     )
-    data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
-    return data
 
 
 
@@ -460,6 +478,8 @@ async def update_timout_history(session: AsyncSession,assignment_id:UUID,driver_
         await session.refresh(his)
         return his
 
+
+# Auto assign to two types of delivery: PICKUP and DELIVERY 
 async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) -> None:
 
     order_statement= select(Order).where(Order.id==order_id);

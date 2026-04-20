@@ -16,7 +16,6 @@ from app.modules.drivers.schema import (
     DriverWrite,
 )
 from app.modules.drivers import service as svc
-from app.modules.orders.models import OrderStatus
 from app.modules.users.models import UserStatus
 from app.modules.users.schema import UserRead, UserWrite
 
@@ -102,9 +101,8 @@ async def picked_up_assignment(
     return await svc.update_assignment_status_api(
         session=session,
         assignment_id=assignment_id,
-        current_user=current_user,
+        current_user=UUID(current_user),
         status=DAStatus.PICKED_UP,
-        order_status=OrderStatus.PICKED_UP
     )
 
 
@@ -117,9 +115,8 @@ async def delivered_assignment(
     return await svc.update_assignment_status_api(
         session=session,
         assignment_id=assignment_id,
-        current_user=current_user,
+        current_user=UUID(current_user),
         status=DAStatus.DELIVERED,
-        order_status=OrderStatus.DELIVERED_TO_SHOP
     )
 
 @router.get("/by-user/{user_id}", response_model=DriverRead)

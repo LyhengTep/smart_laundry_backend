@@ -11,7 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import func
 from app.api.reponse_model import Page
-from app.core.config import TOPIC_PICKUP_ASSIGNMENT
+from app.core.config import TOPIC_DELIVERY_ASSIGNMENT, TOPIC_PICKUP_ASSIGNMENT
 from app.core.firebase import send_firebase_message
 from app.exceptions.http import create_400, create_404
 from app.lib.aws import send_sqs_message
@@ -301,6 +301,15 @@ async def update_order_status_api(order_id: UUID,
                     message_body=json.dumps({
                         "order_id": str(order.id),
                         "type": "PICKUP"
+                    })
+                ) 
+
+    if data.status == OrderStatus.READY_FOR_DELIVERY:
+            send_sqs_message(
+                    queue_name=TOPIC_DELIVERY_ASSIGNMENT,
+                    message_body=json.dumps({
+                        "order_id": str(order.id),
+                        "type": "DELIVERY"
                     })
                 ) 
     return order
