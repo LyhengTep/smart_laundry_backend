@@ -41,7 +41,7 @@ services:
     container_name: smart-laundry-backend
     restart: unless-stopped
     # image: lyheng/smartlaundry_backend:0.0.1-dev.6
-    image: lyheng/smartlaundry_backend:e0ac291333664844d9ddf64fbd8f6702cdf277f1
+    image: lyheng/smartlaundry_backend:db253692a2bfa008ad8f0eee1718d662c51548c2
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`) || PathPrefix(`/public/uploads`)"
@@ -61,6 +61,7 @@ services:
       AWS_S3_ENDPOINT_URL: https://sqs.ap-southeast-1.amazonaws.com/198170202285/pickup_assignment
       AWS_REGION: ap-southeast-1
       TOPIC_PICKUP_ASSIGNMENT: pickup_assignment
+      TOPIC_DELIVERY_ASSIGNMENT: delivery_assignment
     volumes:
       - ./firebaseServiceAccount.json:/app/msg/firebaseServiceAccount.json
     ports:
@@ -70,7 +71,7 @@ services:
       - postgres
   web: 
     # image: lyheng/smart-laundry-web:0.0.1-dev.5
-    image: lyheng/smart-laundry-web:5e49fc78736328371317e363ac325a5249eae7f9
+    image: lyheng/smart-laundry-web:abddfc4e0ac64d6be4ac30c8b00a24012700872c
     platform: linux/amd64
     labels:
       - "traefik.enable=true"
