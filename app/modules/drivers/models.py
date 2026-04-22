@@ -9,6 +9,7 @@ from app.shared.common import utc_now
 from datetime import datetime, timezone
 if TYPE_CHECKING:
     from app.modules.users.models import User
+    from app.modules.payments.models import Payment
 
 # def utc_now() -> datetime:
 #     return datetime.now(timezone.utc)
@@ -87,6 +88,13 @@ class DriverAssignment(SQLModel, table=True):
     )
     order: Order= Relationship(back_populates="assignments")
     driver: Driver= Relationship(back_populates="assignment")
+    payment: Optional["Payment"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Payment.assignment_id == DriverAssignment.id",
+            "foreign_keys": "[Payment.assignment_id]",
+            "uselist": False,
+        }
+    )
     assignedAt: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=True),
