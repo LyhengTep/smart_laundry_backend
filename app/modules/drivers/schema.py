@@ -1,13 +1,16 @@
 
 
 from datetime import datetime
+import decimal
 from socket import timeout
 from uuid import UUID
 from sqlmodel import SQLModel
 
 from app.api.reponse_model import Page
 from app.modules.drivers.models import DARole, DAStatus, DriverAssignment
+from app.modules.orders.models import DeliveryFeePaidBy
 from app.modules.orders.schema import OrderRead, OrderReadWithCustomer
+from app.modules.payments.schema import PaymentRead
 from app.modules.users.models import RoleName, UserStatus
 from app.modules.users.schema import UserEdit, UserRead, UserWrite
 from typing import Optional
@@ -41,13 +44,15 @@ class DriverAssignmentCreate(SQLModel):
 
 class DriverAssignmentRead(SQLModel):
     id: UUID
-    driver_id: UUID
+    driver_id: UUID | None
     order_id: UUID
+    cost: decimal.Decimal | None = None
     role: DARole | None
     status: DAStatus | None
     assignedAt: datetime | None
     deliveryAt: datetime | None
     order: OrderReadWithCustomer | None
+    payment: PaymentRead | None
     created_at: datetime
     updated_at: datetime
 
@@ -60,6 +65,10 @@ class ActiveAssignmentResponse(SQLModel):
 
 class DriverAssignmentStatusUpdate(SQLModel):
     status: DAStatus
+
+
+class PickupStatusUpdate(SQLModel):
+    delivery_fee_paid_by: DeliveryFeePaidBy | None = None
 
 # class AssignmentRead(DriverAssignment):
     
