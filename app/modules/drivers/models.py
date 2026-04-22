@@ -1,7 +1,8 @@
 
+from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 from sqlmodel import Field, Relationship,SQLModel
-from sqlalchemy import Column, DateTime, Enum as SAEnum, String, Text
+from sqlalchemy import Column, DateTime, Enum as SAEnum, Numeric, String, Text
 from uuid import UUID, uuid4
 from enum import Enum
 from app.modules.orders.models import Order
@@ -95,6 +96,7 @@ class DriverAssignment(SQLModel, table=True):
             "uselist": False,
         }
     )
+    cost: Decimal | None = Field(default=None, sa_column=Column(Numeric(10, 2), nullable=True))
     assignedAt: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=True),

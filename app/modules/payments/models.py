@@ -43,6 +43,11 @@ class ConfirmedByType(str, Enum):
     ADMIN = "ADMIN"
 
 
+class PaymentType(str, Enum):
+    PICKUP_FEE = "pickup_fee"
+    FINAL_PAYMENT = "final_payment"
+
+
 class Payment(SQLModel, table=True):
     __tablename__ = "payments"
 
@@ -68,6 +73,10 @@ class Payment(SQLModel, table=True):
     )
     paid_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    type: PaymentType | None = Field(
+        default=None,
+        sa_column=Column(SAEnum(PaymentType, name="payment_type"), nullable=True),
     )
     confirmed_by: ConfirmedByType | None = Field(
         default=None,
