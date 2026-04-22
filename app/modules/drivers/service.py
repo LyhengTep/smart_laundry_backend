@@ -24,14 +24,15 @@ from app.modules.drivers.schema import (
     DriverRead,
     DriverWrite,
 )
-from app.modules.orders.models import Order, OrderStatus
+from app.modules.orders.models import DeliveryFeePaidBy, Order, OrderStatus
+from app.modules.payments.models import Payment, PaymentStatus
 from app.modules.orders.service import get_order_by_id, update_order_status, update_order_status_api
 from app.modules.orders.schema import OrderRead, OrderReadV2, OrderStatusUpdate
 from app.modules.users.models import User, UserStatus
 from app.modules.realtime.manager import connection_manager
 import asyncio
 
-from app.shared.common import get_assignment_room
+from app.shared.common import get_assignment_room, utc_now
 
 
 
@@ -199,7 +200,8 @@ async def list_assignments(
     offset = (page - 1) * size
     statement = select(DriverAssignment).offset(offset).limit(size).order_by(DriverAssignment.created_at.desc()).options(selectinload(DriverAssignment.order).selectinload(Order.items),
                                                                                                                          selectinload(DriverAssignment.order).selectinload(Order.customer),
-                                                                                                                         selectinload(DriverAssignment.order).selectinload(Order.business))
+                                                                                                                         selectinload(DriverAssignment.order).selectinload(Order.business),
+                                                                                                                         selectinload(DriverAssignment.payment))
     count_statement = select(func.count(DriverAssignment.id))
     logger.info(f"status not in {status_not_in} and {len(status_not_in)}")
     if len(status_not_in)>0:
@@ -267,7 +269,8 @@ async def get_assignment_with_details(session: AsyncSession,assignment_id)-> Dri
 async def get_assignment_with_details_v2(session: AsyncSession,assignment_id)-> DriverAssignment:
     ass_statement= select(DriverAssignment).where(DriverAssignment.id==assignment_id).options(selectinload(DriverAssignment.order).selectinload(Order.items),
                                                                                               selectinload(DriverAssignment.order).selectinload(Order.business),
-                                                                                              selectinload(DriverAssignment.order).selectinload(Order.customer).selectinload(User.driver))
+                                                                                              selectinload(DriverAssignment.order).selectinload(Order.customer).selectinload(User.driver),
+                                                                                              selectinload(DriverAssignment.payment))
 
     ass_res = await session.exec(ass_statement)
     assignment= ass_res.first()
@@ -280,7 +283,8 @@ async def get_assignment_with_details_v2(session: AsyncSession,assignment_id)-> 
 def assignment_detail_query_builder():
     return (select(DriverAssignment).options(selectinload(DriverAssignment.order).selectinload(Order.items),
                                                                                               selectinload(DriverAssignment.order).selectinload(Order.business),
-                                                                                              selectinload(DriverAssignment.order).selectinload(Order.customer).selectinload(User.driver)))
+                                                                                              selectinload(DriverAssignment.order).selectinload(Order.customer).selectinload(User.driver),
+                                                                                              selectinload(DriverAssignment.payment)))
 async def get_assignment_by_id(session: AsyncSession, assignment_id: UUID) -> DriverAssignmentRead:
     assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     if assignment is None:
@@ -345,7 +349,19 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
         assignment_id=assignment_id,
         data=DriverAssignmentStatusUpdate(status=DAStatus.ACCEPTED),
     )
-    
+
+    payment_statement = select(Payment).where(
+        Payment.order_id == assignment.order_id,
+        Payment.status == PaymentStatus.PENDING,
+    )
+    payment_result = await session.exec(payment_statement)
+    payment = payment_result.first()
+    if payment is not None:
+        payment.assignment_id = assignment_id
+        session.add(payment)
+        await session.commit()
+
+    assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     print(f"accept assignment api with assignment data {assignment}")
     data = DriverAssignmentRead.model_validate(assignment).model_dump(mode="json")
 
@@ -354,10 +370,15 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
     return data
 
 # when pickup order status is update to OrderStatus.PICKED_UP and assignment is PICKED_UP
-async def pickup_assignment_api(session: AsyncSession, assignment_id: UUID,user_id: UUID=None)->DriverAssignmentRead:
+async def pickup_assignment_api(
+    session: AsyncSession,
+    assignment_id: UUID,
+    user_id: UUID = None,
+    delivery_fee_paid_by: DeliveryFeePaidBy | None = None,
+) -> DriverAssignmentRead:
     assignment = await get_assignment(session=session, assignment_id=assignment_id)
 
-    if assignment is None: 
+    if assignment is None:
         raise create_404("Assignment is not found")
 
     return await update_assignment_status_api(
@@ -365,6 +386,7 @@ async def pickup_assignment_api(session: AsyncSession, assignment_id: UUID,user_
         assignment_id=assignment_id,
         status=DAStatus.PICKED_UP,
         current_user=user_id,
+        delivery_fee_paid_by=delivery_fee_paid_by,
     )
 
 # when pickup order status is update to OrderStatus.DELIVERED_TO_SHOP and assignment is DELIVERED
@@ -385,18 +407,27 @@ def resolve_assignment_order_status(current_status: OrderStatus, assignment_stat
     )
 
 
-async def update_assignment_status_api(session: AsyncSession, assignment_id: UUID,status:DAStatus, current_user: UUID=None)->DriverAssignmentRead:
-   
+async def update_assignment_status_api(
+    session: AsyncSession,
+    assignment_id: UUID,
+    status: DAStatus,
+    current_user: UUID = None,
+    delivery_fee_paid_by: DeliveryFeePaidBy | None = None,
+) -> DriverAssignmentRead:
+
     assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     logger.info(f"call for deliver assignment {assignment}")
-    if assignment is None: 
+    if assignment is None:
         raise create_404("Assignment is not found")
 
     next_order_status = resolve_assignment_order_status(assignment.order.status, status)
+    order_status_data = OrderStatusUpdate(status=next_order_status)
+    if status == DAStatus.PICKED_UP:
+        order_status_data.delivery_fee_paid_by = delivery_fee_paid_by
     order = await update_order_status_api(
         session=session,
         order_id=assignment.order_id,
-        data=OrderStatusUpdate(status=next_order_status),
+        data=order_status_data,
         current_user_id=current_user,
     )
     logger.info(f"Order after updated {order}")
@@ -479,23 +510,41 @@ async def update_timout_history(session: AsyncSession,assignment_id:UUID,driver_
         return his
 
 
-# Auto assign to two types of delivery: PICKUP and DELIVERY 
+def _fallback_order_status(role: DARole) -> OrderStatus:
+    return OrderStatus.CONFIRMED if role == DARole.PICKUP else OrderStatus.READY_FOR_DELIVERY
+
+
+async def _revert_order_to_fallback(session: AsyncSession, order_id: UUID, role: DARole) -> None:
+    order_statement = select(Order).where(Order.id == order_id)
+    order_res = await session.exec(order_statement)
+    order = order_res.one_or_none()
+    if order is None:
+        return
+    fallback = _fallback_order_status(role)
+    logger.warning("No available drivers for order %s (%s), reverting to %s", order_id, role.value, fallback.value)
+    order.status = fallback
+    order.updated_at = utc_now()
+    session.add(order)
+    await session.commit()
+
+
+# Auto assign to two types of delivery: PICKUP and DELIVERY
 async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) -> None:
 
     order_statement= select(Order).where(Order.id==order_id);
     order_res = await session.exec(order_statement);
     order= order_res.one_or_none();
     if order is None:
-            raise Exception("Order not found") 
-    
+            raise Exception("Order not found")
+
     driver_statement=select(Driver).where(Driver.driver_status==DriverStatus.ONLINE)
     driver_res= await session.exec(driver_statement)
     drivers = driver_res.fetchall()
 
     if len(drivers)==0:
-        logger.warning("No available drivers for auto-assigning")
+        await _revert_order_to_fallback(session=session, order_id=order_id, role=type)
         return
-    
+
     assignment= await create_assignment(session=session,order_id=order.id,role=type,driver_id=drivers[0].id)
     await set_timeout_assign_driver(session=session,assignment_id=assignment.id)
 
@@ -515,7 +564,9 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
     drivers = driver_res.fetchall()
     logger.info(f"Fetching all drivers: {drivers}")
     if len(drivers) == 0:
-        logger.warning("No available drivers for auto-assigning")
+        assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
+        if assignment is not None:
+            await _revert_order_to_fallback(session=session, order_id=assignment.order_id, role=assignment.role)
         return
     assignment = await get_assignment_with_details_v2(session=session,assignment_id=assignment_id)
 
