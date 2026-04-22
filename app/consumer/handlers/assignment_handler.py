@@ -3,6 +3,7 @@ import json
 import logging
 
 from app.db.engine import get_session_context
+from app.modules.drivers.models import DARole
 from app.modules.drivers.service import auto_assign_driver
 
 
@@ -16,7 +17,7 @@ async def handle_pickup_assignment(message: dict) -> None:
         # For example, you might parse the message body, update the database, etc.
         message_body = json.loads(message.get("Body"))
         logger.info(f"Processing pickup assignment for order_id: {message_body}")
-        await auto_assign_driver(session=session, type="PICKUP", order_id=message_body.get("order_id"))
+        await auto_assign_driver(session=session, type=DARole.PICKUP, order_id=message_body.get("order_id"))
 
 
 
@@ -28,4 +29,4 @@ async def handle_delivery_assignment(message: dict) -> None:
         # For example, you might parse the message body, update the database, etc.
         message_body = json.loads(message.get("Body"))
         logger.info(f"Processing pickup assignment for order_id: {message_body}")
-        await auto_assign_driver(session=session, type="DELIVERY", order_id=message_body.get("order_id"))
+        await auto_assign_driver(session=session, type=DARole.DELIVERY, order_id=message_body.get("order_id"))
