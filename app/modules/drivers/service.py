@@ -1,3 +1,4 @@
+import decimal
 import logging
 from math import log
 from uuid import UUID
@@ -25,9 +26,9 @@ from app.modules.drivers.schema import (
     DriverWrite,
 )
 from app.modules.orders.models import DeliveryFeePaidBy, Order, OrderStatus
-from app.modules.payments.models import Payment, PaymentStatus
 from app.modules.orders.service import get_order_by_id, update_order_status, update_order_status_api
-from app.modules.orders.schema import OrderRead, OrderReadV2, OrderStatusUpdate
+from app.modules.orders.schema import  OrderReadV2, OrderStatusUpdate
+from app.modules.payments.service import create_delivery_payment, get_pending_payment_by_order_id, update_payment_for_pickup, update_plain_payment
 from app.modules.users.models import User, UserStatus
 from app.modules.realtime.manager import connection_manager
 import asyncio
@@ -344,22 +345,27 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
     order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=order_status))
     
     logger.info(f"Updated order status to PICKUP_ASSIGNED for order {order.id} when accepting assignment {assignment_id}")
-    assignment = await update_assignment_status(
+
+    assignment = await update_assignment_status_with_fee(
         session=session,
         assignment_id=assignment_id,
         data=DriverAssignmentStatusUpdate(status=DAStatus.ACCEPTED),
+        cost=order.delivery_fee,
     )
 
-    payment_statement = select(Payment).where(
-        Payment.order_id == assignment.order_id,
-        Payment.status == PaymentStatus.PENDING,
-    )
-    payment_result = await session.exec(payment_statement)
-    payment = payment_result.first()
-    if payment is not None:
-        payment.assignment_id = assignment_id
-        session.add(payment)
-        await session.commit()
+    if order_status == OrderStatus.PICKUP_ASSIGNED:
+        # Pickup: payment amount is delivery fee only (clothes not yet washed)
+        payment = await get_pending_payment_by_order_id(assignment.order_id, session)
+        if payment is not None:
+            await update_payment_for_pickup(payment.id, ass_id=assignment.id, amount=order.delivery_fee, session=session)
+    else:
+        # Delivery: payment amount is full order total (subtotal + delivery_fee)
+        await create_delivery_payment(
+            order_id=assignment.order_id,
+            assignment_id=assignment_id,
+            amount=decimal.Decimal(str(order.total)),
+            session=session,
+        )
 
     assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     print(f"accept assignment api with assignment data {assignment}")
@@ -424,6 +430,10 @@ async def update_assignment_status_api(
     order_status_data = OrderStatusUpdate(status=next_order_status)
     if status == DAStatus.PICKED_UP:
         order_status_data.delivery_fee_paid_by = delivery_fee_paid_by
+        payment = await get_pending_payment_by_order_id(assignment.order_id,session)
+        payment.paid_by=delivery_fee_paid_by
+        await update_plain_payment(payment=payment,session=session)
+
     order = await update_order_status_api(
         session=session,
         order_id=assignment.order_id,
@@ -447,7 +457,21 @@ async def deliver_assignment_api(session: AsyncSession, assignment_id: UUID,curr
         current_user=current_user,
     )
 
+async def _apply_assignment_status(
+    session: AsyncSession,
+    assignment: DriverAssignment,
+    status: DAStatus,
+) -> None:
+    assignment.status = status
+    session.add(assignment)
 
+    driver = await session.get(Driver, assignment.driver_id)
+    if driver is not None:
+        if status in (DAStatus.ACCEPTED, DAStatus.PICKED_UP):
+            driver.driver_status = DriverStatus.BUSY
+        elif status in (DAStatus.DELIVERED, DAStatus.REJECTED):
+            driver.driver_status = DriverStatus.ONLINE
+        session.add(driver)
 
 async def update_assignment_status(
     session: AsyncSession,
@@ -460,23 +484,35 @@ async def update_assignment_status(
     logger.info(f"Updated assignment status for assignment {assignment.order}")
     assignment.status = data.status
     session.add(assignment)
-    
-    driver = await session.get(Driver, assignment.driver_id)
-    if driver is not None:
-        if data.status == DAStatus.ACCEPTED:
-            driver.driver_status = DriverStatus.BUSY
-        elif data.status == DAStatus.PICKED_UP:
-            driver.driver_status = DriverStatus.BUSY
-        elif data.status == DAStatus.DELIVERED:
-            driver.driver_status = DriverStatus.ONLINE
-        elif data.status == DAStatus.REJECTED:
-            driver.driver_status = DriverStatus.ONLINE
-        session.add(driver)
+    await _apply_assignment_status(session=session,assignment=assignment,status=data.status)
 
     await session.commit()
 
     assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     return assignment
+
+
+async def update_assignment_status_with_fee(
+    session: AsyncSession,
+    assignment_id: UUID,
+    data: DriverAssignmentStatusUpdate,
+    cost: decimal.Decimal
+) -> DriverAssignmentRead:
+    assignment = await get_assignment_with_details(session=session, assignment_id=assignment_id)
+    if assignment is None:
+        raise create_404("Driver assignment not found")
+    logger.info(f"Updated assignment status for assignment {assignment.order}")
+    assignment.status = data.status
+    assignment.cost=cost
+
+    # update driver assignment status 
+    await _apply_assignment_status(session=session,assignment=assignment,status=data.status)
+
+    await session.commit()
+    assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
+    return assignment
+
+
 
 async def unset_driver_assignment(session: AsyncSession,assignment_id:UUID):
     assignment = await get_assignment(session=session,assignment_id=assignment_id)
@@ -511,7 +547,7 @@ async def update_timout_history(session: AsyncSession,assignment_id:UUID,driver_
 
 
 def _fallback_order_status(role: DARole) -> OrderStatus:
-    return OrderStatus.CONFIRMED if role == DARole.PICKUP else OrderStatus.READY_FOR_DELIVERY
+    return OrderStatus.PENDING if role == DARole.PICKUP else OrderStatus.READY_FOR_DELIVERY
 
 
 async def _revert_order_to_fallback(session: AsyncSession, order_id: UUID, role: DARole) -> None:
@@ -547,7 +583,6 @@ async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) 
 
     assignment= await create_assignment(session=session,order_id=order.id,role=type,driver_id=drivers[0].id)
     await set_timeout_assign_driver(session=session,assignment_id=assignment.id)
-
 
 
 async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
@@ -611,7 +646,6 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
 
 # handle when driver dont accept assignment
 async  def assignment_timeout(assignment_id: UUID,):
-
     try:
         async with get_session_context() as session:
             await asyncio.sleep(60) # wait for 1 minute before checking if the assignment is accepted or not
@@ -619,7 +653,7 @@ async  def assignment_timeout(assignment_id: UUID,):
             assignment = await get_assignment(session,assignment_id)
             logger.info(f"Driver assigment: {assignment}")
             logger.info(f"Fetched assignment for timeout check: {assignment.status}")
-            if assignment.status != DAStatus.ACCEPTED:
+            if assignment.status not in [DAStatus.ACCEPTED,DAStatus.PICKED_UP,DAStatus.DELIVERED]:
                 logger.info(f"No driver pickup assignment {assignment_id}")
                 # reassign next driver
                 await update_timout_history(session=session,assignment_id=assignment_id,driver_id=assignment.driver_id)
