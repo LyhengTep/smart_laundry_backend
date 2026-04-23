@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.modules.drivers.models import DriverAssignment
     from app.modules.users.models import User
     from app.modules.businesses.models import LaundryBusiness
+    from app.modules.payments.models import Payment
 
 from app.shared.common import utc_now
 
@@ -37,6 +38,11 @@ class OrderStatus(str, Enum):
 class PickupMethod(str, Enum):
     PICKUP = "PICKUP"
     DROP_OFF = "DROP_OFF"
+
+
+class DeliveryFeePaidBy(str, Enum):
+    CUSTOMER = "CUSTOMER"
+    SHOP = "SHOP"
 
 
 class Order(SQLModel, table=True):
@@ -76,12 +82,18 @@ class Order(SQLModel, table=True):
     notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     subtotal: float = Field(default=0, sa_column=Column(Float(), nullable=False))
     discount: float = Field(default=0, sa_column=Column(Float(), nullable=False))
+    delivery_fee: float = Field(default=0, sa_column=Column(Float(), nullable=False))
+    pickup_fee: float = Field(default=0, sa_column=Column(Float(), nullable=False))
+    delivery_fee_paid_by: DeliveryFeePaidBy = Field(
+        default=DeliveryFeePaidBy.CUSTOMER,
+        sa_column=Column(SAEnum(DeliveryFeePaidBy, name="delivery_fee_paid_by"), nullable=False),
+    )
     total: float = Field(default=0, sa_column=Column(Float(), nullable=False))
     items: list["OrderItem"] = Relationship(back_populates="order")
     customer: "User" = Relationship(back_populates="orders")
     business: "LaundryBusiness" = Relationship(back_populates="orders")
     assignments: list["DriverAssignment"] = Relationship(back_populates="order")
-
+    payments: list["Payment"] = Relationship(back_populates="order")
     created_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
