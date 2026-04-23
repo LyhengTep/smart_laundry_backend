@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 import json
 import logging
 from uuid import UUID, uuid4
@@ -16,7 +17,6 @@ from app.core.firebase import send_firebase_message
 from app.exceptions.http import create_400, create_404
 from app.lib.aws import send_sqs_message
 from app.modules.device_tokens.models import DeviceToken
-from app.modules.drivers.models import DARole
 from app.modules.realtime.manager import connection_manager
 from app.modules.business_services.model import BusinessService
 from app.modules.businesses.models import LaundryBusiness
@@ -28,8 +28,8 @@ from app.modules.orders.schema import (
     OrderRead,
     OrderStatusUpdate,
 )
+from app.modules.payments.models import PaidByType, Payment, PaymentStatus
 from app.modules.users.models import RoleName, User
-from app.modules.drivers import service as driver
 from app.shared.common import get_notification_template, get_notification_title, utc_now
 
 logger=logging.getLogger(__name__)
@@ -71,13 +71,15 @@ def calculate_order_item_subtotal(unit_price: float, quantity: float) -> float:
     return round(unit_price * quantity, 2)
 
 
-def calculate_order_total(subtotals: list[float], discount: float = 0) -> float:
+def calculate_order_total(subtotals: list[float], discount: float = 0, delivery_fee: float = 0) -> float:
     if discount < 0:
         raise create_400("Discount cannot be negative")
+    if delivery_fee < 0:
+        raise create_400("Delivery fee cannot be negative")
     subtotal = round(sum(subtotals), 2)
     if discount > subtotal:
         raise create_400("Discount cannot be greater than subtotal")
-    return round(subtotal - discount, 2)
+    return round(subtotal - discount + delivery_fee, 2)
 
 
 def validate_status_transition(current_status: OrderStatus, new_status: OrderStatus) -> None:
@@ -97,6 +99,31 @@ def build_order_event_payload(event: str, order: OrderRead) -> dict:
         "status": order.status.value,
         "data": jsonable_encoder(order),
     }
+
+
+def build_initial_order_payment(order: Order, data: OrderCreate) -> Payment:
+    return Payment(
+        order_id=order.id,
+        method=data.payment_method,
+        status=PaymentStatus.PENDING,
+        amount=Decimal(str(order.total)),
+        currency=data.payment_currency,
+        paid_by=PaidByType.CUSTOMER,
+        paid_at=utc_now(),
+    )
+
+
+async def update_pending_order_payment_amount(order: Order, session: AsyncSession) -> None:
+    statement = select(Payment).where(
+        Payment.order_id == order.id,
+        Payment.status == PaymentStatus.PENDING,
+        Payment.paid_by == PaidByType.CUSTOMER,
+    )
+    result = await session.exec(statement)
+    for payment in result.all():
+        payment.amount = Decimal(str(order.total))
+        payment.updated_at = utc_now()
+        session.add(payment)
 
 
 async def broadcast_order_event(event: str, order: OrderRead) -> None:
@@ -246,14 +273,21 @@ async def create_order(session: AsyncSession, data: OrderCreate) -> OrderRead:
         notes=data.notes,
         subtotal=subtotal,
         discount=data.discount,
+        delivery_fee=0,
+        delivery_fee_paid_by=data.delivery_fee_paid_by,
         pickup_latitude=data.pickup_latitude,
         pickup_longitude=data.pickup_longitude,
         delivery_latitude=data.delivery_latitude,
         delivery_longitude=data.delivery_longitude,
-        total=calculate_order_total([item.sub_total for item in order_items], data.discount),
+        total=calculate_order_total(
+            [item.sub_total for item in order_items],
+            discount=data.discount,
+            delivery_fee=0,
+        ),
         items=order_items,
     )
     session.add(order)
+    session.add(build_initial_order_payment(order=order, data=data))
     await session.commit()
     created_order = await get_order_by_id(order.id, session)
     await broadcast_order_event("order_created", created_order)
@@ -314,6 +348,20 @@ async def update_order_status_api(order_id: UUID,
                 ) 
     return order
 
+async def mark_order_payment_received(order: Order, session: AsyncSession) -> None:
+    statement = select(Payment).where(
+        Payment.order_id == order.id,
+        Payment.status == PaymentStatus.PENDING,
+        Payment.paid_by == PaidByType.CUSTOMER,
+    )
+    result = await session.exec(statement)
+    for payment in result.all():
+        payment.status = PaymentStatus.COLLECTED
+        payment.paid_at = utc_now()
+        payment.updated_at = utc_now()
+        session.add(payment)
+
+
 async def update_order_status(
     order_id: UUID,
     data: OrderStatusUpdate,
@@ -325,12 +373,31 @@ async def update_order_status(
     if data.driver_id is not None:
         order.driver_id = data.driver_id
 
+    if data.delivery_fee is not None:
+        if data.status != OrderStatus.CONFIRMED:
+            raise create_400("Delivery fee can only be set when confirming an order")
+        order.delivery_fee = data.delivery_fee
+        order.total = calculate_order_total(
+            [item.sub_total for item in order.items],
+            discount=order.discount,
+            delivery_fee=order.delivery_fee,
+        )
+        await update_pending_order_payment_amount(order=order, session=session)
+
+    if data.delivery_fee_paid_by is not None:
+        if data.status not in {OrderStatus.PICKED_UP, OrderStatus.OUT_FOR_DELIVERY}:
+            raise create_400("Delivery fee payer can only be set at pickup")
+        order.delivery_fee_paid_by = data.delivery_fee_paid_by
+
     order.status = data.status
     order.updated_at = utc_now()
 
+    if data.status == OrderStatus.DELIVERED_TO_SHOP:
+        await mark_order_payment_received(order=order, session=session)
+
     session.add(order)
     await session.commit()
-    
+
     updated_order = await get_order_by_id(order_id=order_id, session=session)
     # await broadcast_order_event("order_status_updated", updated_order)
     return updated_order
@@ -364,11 +431,15 @@ async def update_order_pricing(
     order.subtotal = round(sum(item.sub_total for item in existing_items.values()), 2)
     if data.discount is not None:
         order.discount = data.discount
+    if data.delivery_fee is not None:
+        order.delivery_fee = data.delivery_fee
     order.total = calculate_order_total(
         [item.sub_total for item in existing_items.values()],
-        order.discount,
+        discount=order.discount,
+        delivery_fee=order.delivery_fee,
     )
     order.updated_at = utc_now()
+    await update_pending_order_payment_amount(order=order, session=session)
 
     session.add(order)
     await session.commit()

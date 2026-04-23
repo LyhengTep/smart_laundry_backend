@@ -104,7 +104,7 @@ async def create_delivery_payment(
         currency=currency,
         paid_by=PaidByType.CUSTOMER,
         paid_at=utc_now(),
-        type=PaymentType.FINAL_PAYMENT,
+        type=PaymentType.DELIVERY_FEE,
     )
     session.add(payment)
     await session.commit()
@@ -151,7 +151,7 @@ async def confirm_payment(payment_id: UUID, data: PaymentConfirm, session: Async
     if payment.status != PaymentStatus.PENDING:
         raise create_400("Only pending payments can be confirmed")
 
-    payment.status = PaymentStatus.SUCCESS
+    payment.status = PaymentStatus.COLLECTED
     payment.confirmed_by = data.confirmed_by
     payment.paid_at = utc_now()
     payment.updated_at = utc_now()

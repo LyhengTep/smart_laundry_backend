@@ -39,6 +39,7 @@ class PaymentRead(SQLModel):
     assignment_id: UUID | None
     paid_by: PaidByType
     paid_at: datetime | None
+    settled_by_payment_id: UUID | None
     confirmed_by: ConfirmedByType | None
     created_at: datetime
     updated_at: datetime

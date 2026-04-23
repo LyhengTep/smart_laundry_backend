@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -6,8 +7,9 @@ from fastapi import HTTPException
 
 from app.modules.business_services.model import BusinessService, PriceType
 from app.modules.laundry_services.model import LaundryService, ServiceEnum
-from app.modules.orders.models import Order, OrderItem, OrderStatus, PickupMethod
+from app.modules.orders.models import DeliveryFeePaidBy, Order, OrderItem, OrderStatus, PickupMethod
 from app.modules.orders.schema import (
+    OrderCreate,
     OrderCreateItem,
     OrderPricingItemUpdate,
     OrderPricingUpdate,
@@ -23,7 +25,9 @@ from app.modules.orders.service import (
     update_order_status,
     update_order_pricing,
     validate_status_transition,
+    mark_order_payment_received,
 )
+from app.modules.payments.models import CurrencyType, PaidByType, Payment, PaymentMethod, PaymentStatus
 from app.modules.users.models import RoleName, User, UserStatus
 from app.tests.modules.conftest import FakeAsyncSession, run_async
 
@@ -129,6 +133,8 @@ def test_build_order_event_payload_contains_expected_fields() -> None:
         notes=None,
         subtotal=7.5,
         discount=0,
+        delivery_fee=0,
+        delivery_fee_paid_by=DeliveryFeePaidBy.CUSTOMER,
         total=7.5,
         created_at=now,
         updated_at=now,
@@ -141,6 +147,91 @@ def test_build_order_event_payload_contains_expected_fields() -> None:
     assert payload["order_id"] == str(order.id)
     assert payload["customer_id"] == str(order.customer_id)
     assert payload["status"] == OrderStatus.PENDING.value
+
+
+def test_create_order_creates_pending_customer_payment(monkeypatch: pytest.MonkeyPatch) -> None:
+    customer = build_user()
+    business_id = uuid4()
+    business_service_id = uuid4()
+    laundry_service = LaundryService(
+        id=3,
+        name=ServiceEnum.WASH,
+        code="WASH-PAY",
+        description="Wash payment test",
+    )
+    business_service = BusinessService(
+        id=business_service_id,
+        business_id=business_id,
+        service_id=laundry_service.id,
+        base_price=5.0,
+        pricing_type=PriceType.PER_ITEM,
+        laundry_service=laundry_service,
+    )
+    created_order = Order(
+        id=uuid4(),
+        order_no="ORD-PAYMENT",
+        customer_id=customer.id,
+        business_id=business_id,
+        driver_id=None,
+        status=OrderStatus.PENDING,
+        pickup_method=PickupMethod.PICKUP,
+        pickup_address="Pickup",
+        pickup_latitude=1.0,
+        pickup_longitude=2.0,
+        delivery_address="Delivery",
+        delivery_latitude=3.0,
+        delivery_longitude=4.0,
+        notes=None,
+        subtotal=10.0,
+        discount=1.0,
+        delivery_fee=0,
+        delivery_fee_paid_by=DeliveryFeePaidBy.SHOP,
+        total=9.0,
+        items=[],
+    )
+    session = FakeAsyncSession(
+        get_results=[customer, object()],
+        exec_results=[[business_service], created_order],
+    )
+
+    async def fake_broadcast(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(order_service, "broadcast_order_event", fake_broadcast)
+
+    result = run_async(
+        order_service.create_order(
+            session=session,
+            data=OrderCreate(
+                customer_id=customer.id,
+                business_id=business_id,
+                pickup_method=PickupMethod.PICKUP,
+                payment_method=PaymentMethod.CASH,
+                payment_currency=CurrencyType.USD,
+                delivery_fee_paid_by=DeliveryFeePaidBy.SHOP,
+                pickup_address="Pickup",
+                delivery_address="Delivery",
+                discount=1.0,
+                pickup_latitude=1.0,
+                pickup_longitude=2.0,
+                delivery_latitude=3.0,
+                delivery_longitude=4.0,
+                items=[OrderCreateItem(business_service_id=business_service_id, quantity=2)],
+            ),
+        )
+    )
+
+    payment = next(item for item in session.added if isinstance(item, Payment))
+    assert result == created_order
+    assert payment.order_id == session.added[0].id
+    assert payment.amount == Decimal("9.0")
+    assert payment.method == PaymentMethod.CASH
+    assert payment.status == PaymentStatus.PENDING
+    assert payment.currency == CurrencyType.USD
+    assert payment.paid_by == PaidByType.CUSTOMER
+    assert session.added[0].delivery_fee == 0
+    assert session.added[0].delivery_fee_paid_by == DeliveryFeePaidBy.SHOP
+    assert session.commits == 1
 
 
 def test_calculate_order_total_applies_discount() -> None:
@@ -188,6 +279,8 @@ def build_order_for_pricing(status: OrderStatus) -> tuple[Order, OrderItem]:
         notes=None,
         subtotal=7.5,
         discount=0,
+        delivery_fee=0,
+        delivery_fee_paid_by=DeliveryFeePaidBy.CUSTOMER,
         total=7.5,
         created_at=now,
         updated_at=now,
@@ -257,6 +350,126 @@ def test_update_order_status_rejects_invalid_transition() -> None:
     assert exc.value.status_code == 400
 
 
+def test_update_order_status_confirmed_can_set_delivery_fee() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PENDING)
+    payment = Payment(
+        order_id=order.id,
+        method=PaymentMethod.CASH,
+        status=PaymentStatus.PENDING,
+        amount=Decimal("7.5"),
+        currency=CurrencyType.USD,
+        paid_by=PaidByType.CUSTOMER,
+        paid_at=datetime.now(timezone.utc),
+    )
+    session = FakeAsyncSession(exec_results=[order, [payment], order])
+
+    updated = run_async(
+        update_order_status(
+            order.id,
+            OrderStatusUpdate(status=OrderStatus.CONFIRMED, delivery_fee=2.0),
+            session,
+        )
+    )
+
+    assert updated.status == OrderStatus.CONFIRMED
+    assert updated.delivery_fee == 2.0
+    assert updated.total == 9.5
+    assert payment.amount == Decimal("9.5")
+    assert session.commits == 1
+
+
+def test_update_order_status_pickup_sets_payer_to_shop() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PICKUP_ASSIGNED)
+    session = FakeAsyncSession(exec_results=[order, order])
+
+    updated = run_async(
+        update_order_status(
+            order.id,
+            OrderStatusUpdate(
+                status=OrderStatus.PICKED_UP,
+                delivery_fee_paid_by=DeliveryFeePaidBy.SHOP,
+            ),
+            session,
+        )
+    )
+
+    assert updated.status == OrderStatus.PICKED_UP
+    assert updated.delivery_fee_paid_by == DeliveryFeePaidBy.SHOP
+    assert updated.delivery_fee == 0
+    assert session.commits == 1
+
+
+def test_update_order_status_rejects_delivery_fee_at_pickup() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PICKUP_ASSIGNED)
+    session = FakeAsyncSession(exec_results=[order])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            update_order_status(
+                order.id,
+                OrderStatusUpdate(status=OrderStatus.PICKED_UP, delivery_fee=3.0),
+                session,
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert "when confirming" in exc.value.detail
+
+
+def test_update_order_status_pickup_without_fee_leaves_existing_values() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PICKUP_ASSIGNED)
+    session = FakeAsyncSession(exec_results=[order, order])
+
+    updated = run_async(
+        update_order_status(
+            order.id,
+            OrderStatusUpdate(status=OrderStatus.PICKED_UP),
+            session,
+        )
+    )
+
+    assert updated.status == OrderStatus.PICKED_UP
+    assert updated.delivery_fee == 0
+    assert updated.delivery_fee_paid_by == DeliveryFeePaidBy.CUSTOMER
+
+
+def test_update_order_status_rejects_delivery_fee_payer_outside_pickup() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PENDING)
+    session = FakeAsyncSession(exec_results=[order])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            update_order_status(
+                order.id,
+                OrderStatusUpdate(
+                    status=OrderStatus.CONFIRMED,
+                    delivery_fee_paid_by=DeliveryFeePaidBy.SHOP,
+                ),
+                session,
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert "at pickup" in exc.value.detail
+
+
+def test_update_order_status_rejects_delivery_fee_outside_confirmation() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.CONFIRMED)
+    session = FakeAsyncSession(exec_results=[order])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            update_order_status(
+                order.id,
+                OrderStatusUpdate(status=OrderStatus.PICKUP_ASSIGNED, delivery_fee=2.0),
+                session,
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert "when confirming" in exc.value.detail
+
+
 def test_update_order_status_cancelled_sends_notification(monkeypatch: pytest.MonkeyPatch) -> None:
     order, _ = build_order_for_pricing(OrderStatus.PENDING)
     user = build_user()
@@ -291,6 +504,68 @@ def test_update_order_status_cancelled_sends_notification(monkeypatch: pytest.Mo
     ]
 
 
+def test_update_order_status_delivery_pickup_sets_payer() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.DELIVERY_ASSIGNED)
+    session = FakeAsyncSession(exec_results=[order, order])
+
+    updated = run_async(
+        update_order_status(
+            order.id,
+            OrderStatusUpdate(
+                status=OrderStatus.OUT_FOR_DELIVERY,
+                delivery_fee_paid_by=DeliveryFeePaidBy.SHOP,
+            ),
+            session,
+        )
+    )
+
+    assert updated.status == OrderStatus.OUT_FOR_DELIVERY
+    assert updated.delivery_fee_paid_by == DeliveryFeePaidBy.SHOP
+    assert session.commits == 1
+
+
+def test_update_order_status_delivered_to_shop_marks_payment_received() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PICKED_UP)
+    payment = Payment(
+        order_id=order.id,
+        method=PaymentMethod.CASH,
+        status=PaymentStatus.PENDING,
+        amount=Decimal("7.5"),
+        currency=CurrencyType.USD,
+        paid_by=PaidByType.CUSTOMER,
+        paid_at=datetime.now(timezone.utc),
+    )
+    session = FakeAsyncSession(exec_results=[order, [payment], order])
+
+    updated = run_async(
+        update_order_status(
+            order.id,
+            OrderStatusUpdate(status=OrderStatus.DELIVERED_TO_SHOP),
+            session,
+        )
+    )
+
+    assert updated.status == OrderStatus.DELIVERED_TO_SHOP
+    assert payment.status == PaymentStatus.COLLECTED
+    assert session.commits == 1
+
+
+def test_update_order_status_delivered_to_shop_no_payment_is_noop() -> None:
+    order, _ = build_order_for_pricing(OrderStatus.PICKED_UP)
+    session = FakeAsyncSession(exec_results=[order, [], order])
+
+    updated = run_async(
+        update_order_status(
+            order.id,
+            OrderStatusUpdate(status=OrderStatus.DELIVERED_TO_SHOP),
+            session,
+        )
+    )
+
+    assert updated.status == OrderStatus.DELIVERED_TO_SHOP
+    assert session.commits == 1
+
+
 def test_update_order_pricing_rejects_before_shop_delivery() -> None:
     order, item = build_order_for_pricing(OrderStatus.PICKED_UP)
     session = FakeAsyncSession(exec_results=[order])
@@ -308,14 +583,39 @@ def test_update_order_pricing_rejects_before_shop_delivery() -> None:
 
 def test_update_order_pricing_recalculates_after_shop_delivery() -> None:
     order, item = build_order_for_pricing(OrderStatus.DELIVERED_TO_SHOP)
-    session = FakeAsyncSession(exec_results=[order, order])
+    session = FakeAsyncSession(exec_results=[order, [], order])
     data = OrderPricingUpdate(
         items=[OrderPricingItemUpdate(order_item_id=item.id, quantity=4.0)],
         discount=1.0,
+        delivery_fee=2.0,
     )
 
     updated = run_async(update_order_pricing(order.id, data, session))
 
     assert updated.subtotal == 10.0
-    assert updated.total == 9.0
+    assert updated.delivery_fee == 2.0
+    assert updated.total == 11.0
     assert updated.items[0].quantity == 4.0
+
+
+def test_update_order_pricing_updates_pending_customer_payment_amount() -> None:
+    order, item = build_order_for_pricing(OrderStatus.DELIVERED_TO_SHOP)
+    payment = Payment(
+        order_id=order.id,
+        method=PaymentMethod.CASH,
+        status=PaymentStatus.PENDING,
+        amount=Decimal("7.5"),
+        currency=CurrencyType.USD,
+        paid_by=PaidByType.CUSTOMER,
+        paid_at=datetime.now(timezone.utc),
+    )
+    session = FakeAsyncSession(exec_results=[order, [payment], order])
+    data = OrderPricingUpdate(
+        items=[OrderPricingItemUpdate(order_item_id=item.id, quantity=4.0)],
+        discount=1.0,
+        delivery_fee=2.0,
+    )
+
+    run_async(update_order_pricing(order.id, data, session))
+
+    assert payment.amount == Decimal("11.0")
