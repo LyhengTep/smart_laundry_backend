@@ -76,14 +76,14 @@ class Payment(SQLModel, table=True):
     paid_by: PaidByType = Field(
         sa_column=Column(SAEnum(PaidByType, name="paid_by_type"), nullable=False),
     )
-    paid_at: datetime = Field(
-        sa_column=Column(DateTime(timezone=True), nullable=False),
+    paid_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )
     type: PaymentType | None = Field(
         default=None,
         sa_column=Column(SAEnum(PaymentType, name="payment_type"), nullable=True),
     )
-    settled_by_payment_id: uuid.UUID | None = Field(default=None, foreign_key="payments.id", nullable=True, index=True)
     confirmed_by: ConfirmedByType | None = Field(
         default=None,
         sa_column=Column(SAEnum(ConfirmedByType, name="confirmed_by_type"), nullable=True),
