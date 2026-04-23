@@ -27,7 +27,10 @@ def upgrade() -> None:
 
     # --- payment_type: drop old, create new ---
     op.execute("ALTER TABLE payments ALTER COLUMN type TYPE VARCHAR(50)")
-    op.execute("UPDATE payments SET type = 'delivery_fee' WHERE type = 'final_payment'")
+    # normalize stored names (UPPER) and old values to new lowercase values
+    op.execute("UPDATE payments SET type = 'pickup_fee' WHERE type = 'PICKUP_FEE'")
+    op.execute("UPDATE payments SET type = 'delivery_fee' WHERE type IN ('FINAL_PAYMENT', 'final_payment')")
+    op.execute("UPDATE payments SET type = NULL WHERE type NOT IN ('pickup_fee', 'delivery_fee', 'washing_service_fee', 'advance_settlement')")
     op.execute("DROP TYPE IF EXISTS payment_type")
     op.execute(
         "CREATE TYPE payment_type AS ENUM "
