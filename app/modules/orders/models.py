@@ -3,6 +3,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+import sqlalchemy as sa
 from sqlalchemy import Column, DateTime, Enum as SAEnum, Float, ForeignKey, String, Text
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -89,6 +90,7 @@ class Order(SQLModel, table=True):
         sa_column=Column(SAEnum(DeliveryFeePaidBy, name="delivery_fee_paid_by"), nullable=False),
     )
     total: float = Field(default=0, sa_column=Column(Float(), nullable=False))
+    has_advance_settlement: bool = Field(default=False, sa_column=Column(sa.Boolean(), nullable=False, server_default="false"))
     items: list["OrderItem"] = Relationship(back_populates="order")
     customer: "User" = Relationship(back_populates="orders")
     business: "LaundryBusiness" = Relationship(back_populates="orders")

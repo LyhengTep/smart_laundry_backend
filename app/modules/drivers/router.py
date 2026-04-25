@@ -1,6 +1,6 @@
 from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.reponse_model import Page
@@ -14,8 +14,11 @@ from app.modules.drivers.schema import (
     DriverAssignmentStatusUpdate,
     DriverRead,
     DriverWrite,
+    PickupStatusUpdate,
 )
 from app.modules.drivers import service as svc
+from app.modules.payments import service as payment_svc
+from app.modules.payments.schema import DriverRevenueRead
 from app.modules.users.models import UserStatus
 from app.modules.users.schema import UserRead, UserWrite
 
@@ -95,6 +98,7 @@ async def reject_assignment(
 @router.patch("/assignments/{assignment_id}/picked-up", response_model=DriverAssignmentRead)
 async def picked_up_assignment(
     assignment_id: UUID,
+    data: PickupStatusUpdate = Body(default=PickupStatusUpdate()),
     session: AsyncSession = Depends(get_session),
     current_user: str = Depends(get_current_user),
 ) -> DriverAssignmentRead:
@@ -103,6 +107,7 @@ async def picked_up_assignment(
         assignment_id=assignment_id,
         current_user=UUID(current_user),
         status=DAStatus.PICKED_UP,
+        delivery_fee_paid_by=data.delivery_fee_paid_by,
     )
 
 
@@ -144,6 +149,18 @@ async def reject_driver(driver_id: UUID,session: AsyncSession = Depends(get_sess
 @router.patch("/{driver_id}/suspend",response_model=DriverRead)
 async def suspend_driver(driver_id: UUID,session: AsyncSession = Depends(get_session))->DriverRead:
     return await svc.suspend_driver(session,driver_id)
+
+
+@router.get("/me/revenue", response_model=DriverRevenueRead)
+async def get_my_revenue(
+    session: AsyncSession = Depends(get_session),
+    current_user: str = Depends(get_current_user),
+) -> DriverRevenueRead:
+    driver = await svc.get_driver_by_user_id(session=session, user_id=current_user)
+    if driver is None:
+        from app.exceptions.http import create_404
+        raise create_404("Driver not found for this user")
+    return await payment_svc.get_driver_revenue(driver_id=driver.id, session=session)
 
 
 @router.get("/pending/get-current-assignment",response_model=ActiveAssignmentResponse)

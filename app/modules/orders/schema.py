@@ -5,7 +5,8 @@ from sqlmodel import SQLModel
 
 from app.modules.business_services.model import PriceType
 from app.modules.businesses.schema import BusinessRead
-from app.modules.orders.models import OrderStatus, PickupMethod
+from app.modules.orders.models import DeliveryFeePaidBy, OrderStatus, PickupMethod
+from app.modules.payments.models import CurrencyType, PaymentMethod
 from app.modules.users.schema import UserRead
 from app.shared.all_schema import UserReadBasicRead
 
@@ -20,6 +21,9 @@ class OrderCreate(SQLModel):
     customer_id: UUID
     business_id: UUID
     pickup_method: PickupMethod
+    payment_method: PaymentMethod = PaymentMethod.CASH
+    payment_currency: CurrencyType = CurrencyType.USD
+    delivery_fee_paid_by: DeliveryFeePaidBy = DeliveryFeePaidBy.CUSTOMER
     pickup_address: str
     delivery_address: str
     notes: str | None = None
@@ -66,7 +70,11 @@ class OrderRead(SQLModel):
     notes: str | None
     subtotal: float
     discount: float
+    delivery_fee: float
+    pickup_fee: float
+    delivery_fee_paid_by: DeliveryFeePaidBy
     total: float
+    has_advance_settlement: bool
     created_at: datetime
     updated_at: datetime
     items: list[OrderItemRead]
@@ -87,6 +95,10 @@ class OrderReadV2(OrderRead):
 class OrderStatusUpdate(SQLModel):
     status: OrderStatus
     driver_id: UUID | None = None
+    delivery_fee: float | None = None
+    pickup_fee: float | None = None
+    delivery_fee_paid_by: DeliveryFeePaidBy | None = None
+    
 
 
 class OrderPricingItemUpdate(SQLModel):
@@ -97,3 +109,4 @@ class OrderPricingItemUpdate(SQLModel):
 class OrderPricingUpdate(SQLModel):
     items: list[OrderPricingItemUpdate]
     discount: float | None = None
+    delivery_fee: float | None = None

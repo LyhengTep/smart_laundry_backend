@@ -47,10 +47,10 @@ class ConfirmedByType(str, Enum):
 
 
 class PaymentType(str, Enum):
-    PICKUP_FEE = "pickup_fee"
-    DELIVERY_FEE = "delivery_fee"
-    WASHING_SERVICE_FEE = "washing_service_fee"
-    ADVANCE_SETTLEMENT = "advance_settlement"
+    PICKUP_FEE = "PICKUP_FEE"
+    DELIVERY_FEE = "DELIVERY_FEE"
+    WASHING_SERVICE_FEE = "WASHING_SERVICE_FEE"
+    ADVANCE_SETTLEMENT = "ADVANCE_SETTLEMENT"
 
 
 class Payment(SQLModel, table=True):
@@ -84,6 +84,7 @@ class Payment(SQLModel, table=True):
         default=None,
         sa_column=Column(SAEnum(PaymentType, name="payment_type"), nullable=True),
     )
+    settled_by_payment_id: uuid.UUID | None = Field(default=None, foreign_key="payments.id", nullable=True, index=True)
     confirmed_by: ConfirmedByType | None = Field(
         default=None,
         sa_column=Column(SAEnum(ConfirmedByType, name="confirmed_by_type"), nullable=True),

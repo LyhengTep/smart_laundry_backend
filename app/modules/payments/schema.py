@@ -7,12 +7,16 @@ from sqlmodel import SQLModel
 from app.modules.payments.models import ConfirmedByType, CurrencyType, PaidByType, PaymentMethod, PaymentStatus, PaymentType
 
 
+
+
+
 class PaymentCreate(SQLModel):
     order_id: UUID
     method: PaymentMethod = PaymentMethod.CASH
     status: PaymentStatus = PaymentStatus.PENDING
     amount: Decimal
     currency: CurrencyType = CurrencyType.USD
+    type: PaymentType
     provider_ref: str | None = None
     paid_by: PaidByType
     paid_at: datetime | None = None
@@ -39,7 +43,7 @@ class PaymentRead(SQLModel):
     assignment_id: UUID | None
     paid_by: PaidByType
     paid_at: datetime | None
-    settled_by_payment_id: UUID | None
+    settled_by_payment_id: UUID | None = None
     confirmed_by: ConfirmedByType | None
     created_at: datetime
     updated_at: datetime
@@ -49,3 +53,15 @@ class PaymentRead(SQLModel):
 
 class PaymentConfirm(SQLModel):
     confirmed_by: ConfirmedByType
+
+
+class DriverRevenueRead(SQLModel):
+    driver_id: UUID
+    total_revenue: Decimal
+    currency: CurrencyType
+
+
+class BusinessRevenueRead(SQLModel):
+    business_id: UUID
+    total_revenue: Decimal
+    currency: CurrencyType

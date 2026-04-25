@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 import json
 import logging
@@ -28,8 +27,11 @@ from app.modules.orders.schema import (
     OrderRead,
     OrderStatusUpdate,
 )
+
+import app.modules.orders.repository as order_repo
 from app.modules.payments.models import PaidByType, Payment, PaymentStatus
 from app.modules.users.models import RoleName, User
+from app.patterns.factories.order_factory import create_order_factory
 from app.shared.common import get_notification_template, get_notification_title, utc_now
 
 logger=logging.getLogger(__name__)
@@ -49,11 +51,6 @@ ORDER_STATUS_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
 }
 
 
-def generate_order_no() -> str:
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    suffix = uuid4().hex[:6].upper()
-    return f"ORD-{timestamp}-{suffix}"
-
 
 def pricing_type_to_measure_type(pricing_type: str) -> str:
     if pricing_type == "per_kg":
@@ -71,15 +68,17 @@ def calculate_order_item_subtotal(unit_price: float, quantity: float) -> float:
     return round(unit_price * quantity, 2)
 
 
-def calculate_order_total(subtotals: list[float], discount: float = 0, delivery_fee: float = 0) -> float:
+def calculate_order_total(subtotals: list[float], discount: float = 0, delivery_fee: float = 0,pickup_fee:float=0) -> float:
     if discount < 0:
         raise create_400("Discount cannot be negative")
     if delivery_fee < 0:
         raise create_400("Delivery fee cannot be negative")
+    if pickup_fee < 0:
+        raise create_400("Pickup fee cannot be negative")
     subtotal = round(sum(subtotals), 2)
     if discount > subtotal:
         raise create_400("Discount cannot be greater than subtotal")
-    return round(subtotal - discount + delivery_fee, 2)
+    return round(subtotal - discount + delivery_fee + pickup_fee, 2)
 
 
 def validate_status_transition(current_status: OrderStatus, new_status: OrderStatus) -> None:
@@ -131,7 +130,6 @@ async def broadcast_order_event(event: str, order: OrderRead) -> None:
     await connection_manager.send_json(f"order:{order.id}", payload)
     await connection_manager.send_json(f"user:{order.customer_id}", payload)
 
-
 def build_order_items(
     items_data: list[OrderCreateItem],
     business_services_by_id: dict[UUID, BusinessService],
@@ -175,7 +173,6 @@ def build_order_items(
         )
 
     return snapshots, round(sum(subtotals), 2)
-
 
 async def list_orders(
     session: AsyncSession,
@@ -221,7 +218,6 @@ async def list_orders(
         pages=(total + size - 1) // size,
     )
 
-
 async def get_order_by_id(order_id: UUID, session: AsyncSession) -> OrderRead:
     statement = select(Order).where(Order.id == order_id).options(selectinload(Order.items))
     result = await session.exec(statement)
@@ -229,7 +225,6 @@ async def get_order_by_id(order_id: UUID, session: AsyncSession) -> OrderRead:
     if order is None:
         raise create_404("Order not found")
     return order
-
 
 async def create_order(session: AsyncSession, data: OrderCreate) -> OrderRead:
     customer = await session.get(User, data.customer_id)
@@ -261,39 +256,20 @@ async def create_order(session: AsyncSession, data: OrderCreate) -> OrderRead:
         business_services_by_id=business_services_by_id,
     )
 
-    order = Order(
-        order_no=generate_order_no(),
-        customer_id=data.customer_id,
-        business_id=data.business_id,
-        pickup_method=data.pickup_method,
-        scheduled_pickup_at=data.scheduled_pickup_at,
-        scheduled_dropoff_at=data.scheduled_dropoff_at,
-        pickup_address=data.pickup_address,
-        delivery_address=data.delivery_address,
-        notes=data.notes,
-        subtotal=subtotal,
-        discount=data.discount,
-        delivery_fee=0,
-        delivery_fee_paid_by=data.delivery_fee_paid_by,
-        pickup_latitude=data.pickup_latitude,
-        pickup_longitude=data.pickup_longitude,
-        delivery_latitude=data.delivery_latitude,
-        delivery_longitude=data.delivery_longitude,
-        total=calculate_order_total(
+    # Create order object 
+    order = create_order_factory(data,subtotal,total=calculate_order_total(
             [item.sub_total for item in order_items],
             discount=data.discount,
             delivery_fee=0,
         ),
-        items=order_items,
-    )
-    session.add(order)
-    session.add(build_initial_order_payment(order=order, data=data))
-    await session.commit()
-    created_order = await get_order_by_id(order.id, session)
-    await broadcast_order_event("order_created", created_order)
-    return created_order
+        order_item=order_items
+        )
 
-
+    # Create Order object and fetch order with items
+    order = await order_repo.save(order=order,session=session)
+    order_with_items = await order_repo.get_by_id(order.id, session)
+    await broadcast_order_event("order_created", order_with_items)
+    return order_with_items
 
 async def notification_processor(order:Order,current_user_id:UUID,session:AsyncSession): 
     try:
@@ -330,14 +306,14 @@ async def update_order_status_api(order_id: UUID,
    
     # Broadcast event to pickup assignment service when order is confirmed, so that it can assign driver for pickup
     if data.status == OrderStatus.CONFIRMED:
-            send_sqs_message(
+        send_sqs_message(
                     queue_name=TOPIC_PICKUP_ASSIGNMENT,
                     message_body=json.dumps({
                         "order_id": str(order.id),
                         "type": "PICKUP"
                     })
                 ) 
-
+            
     if data.status == OrderStatus.READY_FOR_DELIVERY:
             send_sqs_message(
                     queue_name=TOPIC_DELIVERY_ASSIGNMENT,
@@ -361,7 +337,6 @@ async def mark_order_payment_received(order: Order, session: AsyncSession) -> No
         payment.updated_at = utc_now()
         session.add(payment)
 
-
 async def update_order_status(
     order_id: UUID,
     data: OrderStatusUpdate,
@@ -373,10 +348,10 @@ async def update_order_status(
     if data.driver_id is not None:
         order.driver_id = data.driver_id
 
-    if data.delivery_fee is not None:
+    if data.pickup_fee is not None:
         if data.status != OrderStatus.CONFIRMED:
             raise create_400("Delivery fee can only be set when confirming an order")
-        order.delivery_fee = data.delivery_fee
+        order.pickup_fee = data.pickup_fee
         order.total = calculate_order_total(
             [item.sub_total for item in order.items],
             discount=order.discount,
@@ -401,7 +376,6 @@ async def update_order_status(
     updated_order = await get_order_by_id(order_id=order_id, session=session)
     # await broadcast_order_event("order_status_updated", updated_order)
     return updated_order
-
 
 async def update_order_pricing(
     order_id: UUID,

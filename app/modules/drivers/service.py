@@ -28,7 +28,8 @@ from app.modules.drivers.schema import (
 from app.modules.orders.models import DeliveryFeePaidBy, Order, OrderStatus
 from app.modules.orders.service import get_order_by_id, update_order_status, update_order_status_api
 from app.modules.orders.schema import  OrderReadV2, OrderStatusUpdate
-from app.modules.payments.service import create_delivery_payment, get_pending_payment_by_order_id, update_payment_for_pickup, update_plain_payment
+from app.modules.payments.models import PaymentStatus, PaymentType
+from app.modules.payments.service import collect_assignment_payments, create_delivery_payment, create_pending_settlement_payment, get_pending_payment_by_order_id, settle_shop_advance_payment, update_payment_for_pickup
 from app.modules.users.models import User, UserStatus
 from app.modules.realtime.manager import connection_manager
 import asyncio
@@ -317,6 +318,9 @@ async def get_driver_active_assignment(session: AsyncSession, driver_id: UUID) -
     assignment = result.one_or_none()
     return assignment
 
+
+
+# When Driver called accept assignment api, the order status will be updated to PICKUP_ASSIGNED if current order status is PENDING; if current order status is READY_FOR_DELIVERY, the order status will be updated to DELIVERY_ASSIGNED
 async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_id: UUID) -> DriverAssignmentRead:
 
     logger.info(f"called assignment accept api {assignment_id}")
@@ -354,16 +358,24 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
     )
 
     if order_status == OrderStatus.PICKUP_ASSIGNED:
-        # Pickup: payment amount is delivery fee only (clothes not yet washed)
+        # Pickup: payment amount is pickup fee only
         payment = await get_pending_payment_by_order_id(assignment.order_id, session)
         if payment is not None:
-            await update_payment_for_pickup(payment.id, ass_id=assignment.id, amount=order.delivery_fee, session=session)
+            await update_payment_for_pickup(payment.id, ass_id=assignment.id, amount=order.pickup_fee, session=session)
     else:
-        # Delivery: payment amount is full order total (subtotal + delivery_fee)
+        delivery_fee_amount = decimal.Decimal(str(order.delivery_fee if order.delivery_fee else order.pickup_fee))
         await create_delivery_payment(
             order_id=assignment.order_id,
             assignment_id=assignment_id,
-            amount=decimal.Decimal(str(order.total)),
+            amount=delivery_fee_amount,
+            payment_type=PaymentType.DELIVERY_FEE,
+            session=session,
+        )
+        await create_delivery_payment(
+            order_id=assignment.order_id,
+            assignment_id=assignment_id,
+            amount=decimal.Decimal(str(order.subtotal)),
+            payment_type=PaymentType.WASHING_SERVICE_FEE,
             session=session,
         )
 
@@ -430,9 +442,43 @@ async def update_assignment_status_api(
     order_status_data = OrderStatusUpdate(status=next_order_status)
     if status == DAStatus.PICKED_UP:
         order_status_data.delivery_fee_paid_by = delivery_fee_paid_by
-        payment = await get_pending_payment_by_order_id(assignment.order_id,session)
-        payment.paid_by=delivery_fee_paid_by
-        await update_plain_payment(payment=payment,session=session)
+        is_delivery_leg = next_order_status == OrderStatus.OUT_FOR_DELIVERY
+        fee_amount = decimal.Decimal(str(
+            assignment.order.delivery_fee if is_delivery_leg else assignment.order.pickup_fee
+        ))
+        payment_type = PaymentType.DELIVERY_FEE if is_delivery_leg else PaymentType.PICKUP_FEE
+        if delivery_fee_paid_by == DeliveryFeePaidBy.SHOP:
+            await create_pending_settlement_payment(
+                order_id=assignment.order_id,
+                assignment_id=assignment_id,
+                amount=fee_amount,
+                payment_type=payment_type,
+                session=session,
+            )
+            assignment.order.has_advance_settlement = True
+            assignment.order.updated_at = utc_now()
+            session.add(assignment.order)
+            await session.commit()
+        else:
+            await create_delivery_payment(
+                order_id=assignment.order_id,
+                assignment_id=assignment_id,
+                amount=fee_amount,
+                payment_type=payment_type,
+                status=PaymentStatus.COLLECTED,
+                session=session,
+            )
+
+    if next_order_status == OrderStatus.DELIVERED_TO_SHOP:
+        await settle_shop_advance_payment(
+            order_id=assignment.order_id,
+            assignment_id=assignment_id,
+            payment_type=PaymentType.PICKUP_FEE,
+            session=session,
+        )
+
+    if next_order_status == OrderStatus.DELIVERED:
+        await collect_assignment_payments(assignment_id=assignment_id, session=session)
 
     order = await update_order_status_api(
         session=session,
@@ -511,8 +557,6 @@ async def update_assignment_status_with_fee(
     await session.commit()
     assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     return assignment
-
-
 
 async def unset_driver_assignment(session: AsyncSession,assignment_id:UUID):
     assignment = await get_assignment(session=session,assignment_id=assignment_id)
