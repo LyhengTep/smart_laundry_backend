@@ -60,6 +60,9 @@ class FakeAsyncSession:
     async def delete(self, obj: Any) -> None:
         self.deleted.append(obj)
 
+    async def flush(self) -> None:
+        pass
+
     async def rollback(self) -> None:
         self.rollbacks += 1
 
