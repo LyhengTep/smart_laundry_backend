@@ -79,7 +79,7 @@ def calculate_order_total(subtotals: list[float], discount: float = 0, delivery_
     subtotal = round(sum(subtotals), 2)
     if discount > subtotal:
         raise create_400("Discount cannot be greater than subtotal")
-    return round(subtotal - discount + delivery_fee + pickup_fee, 2)
+    return round((subtotal - discount) + delivery_fee + pickup_fee, 2)
 
 
 def validate_status_transition(current_status: OrderStatus, new_status: OrderStatus) -> None:
@@ -355,6 +355,13 @@ async def update_order_status(
             raise create_400("Delivery fee can only be set when confirming an order")
         order.pickup_fee = data.pickup_fee
         order.delivery_fee = data.pickup_fee
+        total= calculate_order_total(
+            [item.sub_total for item in order.items],
+            discount=order.discount,
+            delivery_fee=order.delivery_fee,
+            pickup_fee=order.pickup_fee
+        )
+        order.total = total 
         await update_pending_order_payment_amount(order=order, session=session)
 
     if data.delivery_fee_paid_by is not None:
@@ -409,7 +416,9 @@ async def update_order_pricing(
         [item.sub_total for item in existing_items.values()],
         discount=order.discount,
         delivery_fee=order.delivery_fee,
+        pickup_fee=order.pickup_fee
     )
+    
     order.updated_at = utc_now()
     await update_pending_order_payment_amount(order=order, session=session)
 

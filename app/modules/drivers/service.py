@@ -450,7 +450,7 @@ async def update_assignment_status_api(
 
     next_order_status = resolve_assignment_order_status(assignment.order.status, status)
     order_status_data = OrderStatusUpdate(status=next_order_status)
-    if status == DAStatus.PICKED_UP:
+    if status == DAStatus.PICKED_UP and assignment.role == DARole.PICKUP:
         order_status_data.delivery_fee_paid_by = delivery_fee_paid_by
         is_delivery_leg = next_order_status == OrderStatus.OUT_FOR_DELIVERY
         fee_amount = decimal.Decimal(str(

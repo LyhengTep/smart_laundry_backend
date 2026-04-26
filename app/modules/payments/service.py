@@ -3,7 +3,6 @@ import logging
 from uuid import UUID
 import uuid
 
-from pydantic_extra_types import payment
 from sqlalchemy import func,and_,or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -272,6 +271,7 @@ async def get_driver_revenue(driver_id: UUID, session: AsyncSession) -> DriverRe
                 DriverAssignment, Payment.assignment_id == DriverAssignment.id
             ).where(
                 DriverAssignment.driver_id == driver_id,
+               Payment.type.in_([PaymentType.PICKUP_FEE, PaymentType.DELIVERY_FEE]),
                 or_(
                         Payment.status==PaymentStatus.COLLECTED,
                         Payment.status==PaymentStatus.SETTLED,

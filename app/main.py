@@ -43,15 +43,15 @@ async def lifespan(app: FastAPI):
     sem = asyncio.Semaphore(10) 
 
 
-    queue_names =[TOPIC_PICKUP_ASSIGNMENT,TOPIC_DELIVERY_ASSIGNMENT]
-    tasks = asyncio.gather(*[consume_queue(name, asyncio.Semaphore(10)) for name in queue_names])
+    queue_names = [TOPIC_PICKUP_ASSIGNMENT, TOPIC_DELIVERY_ASSIGNMENT]
+    tasks = [asyncio.create_task(consume_queue(name, asyncio.Semaphore(10))) for name in queue_names]
 
-    # task = asyncio.create_task(consume(sem))
     try:
         yield
     finally:
         for task in tasks:
             task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 app = FastAPI(lifespan=lifespan,title="Smart Laundry API")
