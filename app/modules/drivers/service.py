@@ -351,6 +351,9 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
     if order.status==OrderStatus.READY_FOR_DELIVERY:
         order_status=OrderStatus.DELIVERY_ASSIGNED
 
+    if order.status==OrderStatus.DELIVERY_ASSIGNED:
+        order_status=OrderStatus.OUT_FOR_DELIVERY
+
     order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=order_status))
     
     logger.info(f"Updated order status to PICKUP_ASSIGNED for order {order.id} when accepting assignment {assignment_id}")
@@ -419,10 +422,12 @@ def resolve_assignment_order_status(current_status: OrderStatus, assignment_stat
             return OrderStatus.PICKED_UP
         if current_status == OrderStatus.DELIVERY_ASSIGNED:
             return OrderStatus.OUT_FOR_DELIVERY
+        if current_status == OrderStatus.OUT_FOR_DELIVERY:
+            return OrderStatus.PICKED_UP_DELIVERY
     if assignment_status == DAStatus.DELIVERED:
         if current_status == OrderStatus.PICKED_UP:
             return OrderStatus.DELIVERED_TO_SHOP
-        if current_status == OrderStatus.OUT_FOR_DELIVERY:
+        if current_status == OrderStatus.OUT_FOR_DELIVERY or current_status == OrderStatus.PICKED_UP_DELIVERY:
             return OrderStatus.DELIVERED
 
     raise create_400(
@@ -631,6 +636,8 @@ async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) 
         await _revert_order_to_fallback(session=session, order_id=order_id, role=type)
         return
 
+    if type == DARole.DELIVERY and order.status != OrderStatus.DELIVERY_ASSIGNED:
+        await update_order_status(session=session, order_id=order_id, data=OrderStatusUpdate(status=OrderStatus.DELIVERY_ASSIGNED))
 
     # Create assignment if not exist, if exist then update driver assignment to new driver and update assignment history
     assignment= await get_assignment_by_order_role(order_id=order_id, role=type, session=session)
