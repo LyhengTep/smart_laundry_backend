@@ -43,9 +43,10 @@ ORDER_STATUS_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
     OrderStatus.PICKED_UP: {OrderStatus.DELIVERED_TO_SHOP},
     OrderStatus.DELIVERED_TO_SHOP: {OrderStatus.PROCESSING},
     OrderStatus.PROCESSING: {OrderStatus.READY_FOR_DELIVERY},
-    OrderStatus.READY_FOR_DELIVERY: {OrderStatus.DELIVERY_ASSIGNED},
+    OrderStatus.READY_FOR_DELIVERY: {OrderStatus.DELIVERY_ASSIGNED,OrderStatus.OUT_FOR_DELIVERY},
     OrderStatus.DELIVERY_ASSIGNED: {OrderStatus.OUT_FOR_DELIVERY},
-    OrderStatus.OUT_FOR_DELIVERY: {OrderStatus.DELIVERED},
+    OrderStatus.OUT_FOR_DELIVERY: {OrderStatus.PICKED_UP_DELIVERY},
+    OrderStatus.PICKED_UP_DELIVERY:{OrderStatus.DELIVERED},
     OrderStatus.DELIVERED: set(),
     OrderStatus.CANCELLED: {OrderStatus.PICKUP_ASSIGNED, OrderStatus.OUT_FOR_DELIVERY,OrderStatus.PENDING,},
 }
@@ -314,7 +315,7 @@ async def update_order_status_api(order_id: UUID,
                     })
                 ) 
             
-    if data.status == OrderStatus.READY_FOR_DELIVERY:
+    if data.status == OrderStatus.READY_FOR_DELIVERY or data.status == OrderStatus.DELIVERY_ASSIGNED:
             send_sqs_message(
                     queue_name=TOPIC_DELIVERY_ASSIGNMENT,
                     message_body=json.dumps({
@@ -343,6 +344,7 @@ async def update_order_status(
     session: AsyncSession,
 ) -> OrderRead:
     order = await get_order_by_id(order_id=order_id, session=session)
+    logger.info(f"Updating order {order_id} status from {order.status} to {data.status}")
     validate_status_transition(order.status, data.status)
 
     if data.driver_id is not None:
@@ -352,15 +354,11 @@ async def update_order_status(
         if data.status != OrderStatus.CONFIRMED:
             raise create_400("Delivery fee can only be set when confirming an order")
         order.pickup_fee = data.pickup_fee
-        order.total = calculate_order_total(
-            [item.sub_total for item in order.items],
-            discount=order.discount,
-            delivery_fee=order.delivery_fee,
-        )
+        order.delivery_fee = data.pickup_fee
         await update_pending_order_payment_amount(order=order, session=session)
 
     if data.delivery_fee_paid_by is not None:
-        if data.status not in {OrderStatus.PICKED_UP, OrderStatus.OUT_FOR_DELIVERY}:
+        if data.status not in {OrderStatus.PICKED_UP, OrderStatus.PICKED_UP_DELIVERY}:
             raise create_400("Delivery fee payer can only be set at pickup")
         order.delivery_fee_paid_by = data.delivery_fee_paid_by
 
