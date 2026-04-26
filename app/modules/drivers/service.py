@@ -282,7 +282,7 @@ async def get_assignment_with_details_v2(session: AsyncSession,assignment_id)-> 
 
 
 
-async def get_assignment(order_id: uuid.UUID, role: DARole,session:AsyncSession)-> DriverAssignment:
+async def get_assignment_by_order_role(order_id: uuid.UUID, role: DARole, session: AsyncSession) -> DriverAssignment:
     statement= select(DriverAssignment).where(DriverAssignment.order_id==order_id, DriverAssignment.role==role)
     result = await session.exec(statement)
     return result.one_or_none()
@@ -633,12 +633,13 @@ async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) 
 
 
     # Create assignment if not exist, if exist then update driver assignment to new driver and update assignment history
-    assignment= await get_assignment(session=session,order_id=order_id,role=type)
+    assignment= await get_assignment_by_order_role(order_id=order_id, role=type, session=session)
     logger.info(f"Existing assignment for order {order_id} and role {type}: {assignment}")
     if assignment is None:
         assignment= await create_assignment(session=session,order_id=order.id,role=type,driver_id=drivers[0].id)
     else: 
             assignment.driver_id=drivers[0].id
+            assignment.assigned_at=utc_now()
             session.add(assignment)
             await session.commit()
             await session.refresh(assignment)
