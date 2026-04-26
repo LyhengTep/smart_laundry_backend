@@ -50,6 +50,7 @@ async def remove_business(business_id: UUID,current_user: str = Depends(get_curr
 @router.get("/{business_id}/revenue", response_model=BusinessRevenueRead)
 async def get_business_revenue(
     business_id: UUID,
+    current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> BusinessRevenueRead:
     return await payment_svc.get_business_revenue(business_id=business_id, session=session)
