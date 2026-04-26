@@ -31,6 +31,7 @@ class OrderStatus(str, Enum):
 
     DELIVERY_ASSIGNED = "DELIVERY_ASSIGNED"  # Driver assigned for delivery
     OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY"    # Driver on the way to customer
+    PICKED_UP_DELIVERY = "PICKED_UP_DELIVERY"  # Driver picked up clothes from shop for delivery
     DELIVERED = "DELIVERED"                  # Final state
 
     CANCELLED = "CANCELLED"
