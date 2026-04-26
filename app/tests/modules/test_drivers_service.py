@@ -48,8 +48,8 @@ def build_assignment(driver_id: UUID | None = None) -> DriverAssignment:
         order_id=uuid4(),
         role=DARole.PICKUP,
         status=None,
-        assignedAt=now,
-        deliveryAt=None,
+        assigned_at=now,
+        delivery_at=None,
         created_at=now,
         updated_at=now,
     )

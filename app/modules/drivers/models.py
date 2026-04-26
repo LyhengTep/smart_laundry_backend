@@ -97,11 +97,11 @@ class DriverAssignment(SQLModel, table=True):
         }
     )
     cost: Decimal | None = Field(default=None, sa_column=Column(Numeric(10, 2), nullable=True))
-    assignedAt: datetime = Field(
+    assigned_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
-    deliveryAt: datetime = Field(
+    delivery_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )

@@ -49,8 +49,8 @@ class DriverAssignmentRead(SQLModel):
     cost: decimal.Decimal | None = None
     role: DARole | None
     status: DAStatus | None
-    assignedAt: datetime | None
-    deliveryAt: datetime | None
+    assigned_at: datetime | None
+    delivery_at: datetime | None
     order: OrderReadWithCustomer | None
     payment: PaymentRead | None
     created_at: datetime

@@ -172,7 +172,7 @@ async def get_assigned_order(session:AsyncSession, current_user:UUID)->ActiveAss
     if res is None:
         raise create_404("Assigned package is not found")
 
-    time_remaining= calulate_remaining_time(assigned_time=res.assignedAt,expired_in_sec=60)
+    time_remaining= calulate_remaining_time(assigned_time=res.assigned_at,expired_in_sec=60)
     logger.info(f"assigned order time remaining is {time_remaining}")
     active_ass= ActiveAssignmentResponse(assignment=res,timeout=time_remaining)
     return active_ass
@@ -281,6 +281,11 @@ async def get_assignment_with_details_v2(session: AsyncSession,assignment_id)-> 
     return assignment
 
 
+
+async def get_assignment(order_id: uuid.UUID, role: DARole,session:AsyncSession)-> DriverAssignment:
+    statement= select(DriverAssignment).where(DriverAssignment.order_id==order_id, DriverAssignment.role==role)
+    result = await session.exec(statement)
+    return result.one_or_none()
 
 def assignment_detail_query_builder():
     return (select(DriverAssignment).options(selectinload(DriverAssignment.order).selectinload(Order.items),
@@ -511,6 +516,7 @@ async def _apply_assignment_status(
     assignment.status = status
     session.add(assignment)
 
+    # Update driver status based on assignment status 
     driver = await session.get(Driver, assignment.driver_id)
     if driver is not None:
         if status in (DAStatus.ACCEPTED, DAStatus.PICKED_UP):
@@ -620,17 +626,29 @@ async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) 
     driver_statement=select(Driver).where(Driver.driver_status==DriverStatus.ONLINE)
     driver_res= await session.exec(driver_statement)
     drivers = driver_res.fetchall()
-
+    logger.info(f"Fetching all drivers: {drivers}")
     if len(drivers)==0:
         await _revert_order_to_fallback(session=session, order_id=order_id, role=type)
         return
 
-    assignment= await create_assignment(session=session,order_id=order.id,role=type,driver_id=drivers[0].id)
+
+    # Create assignment if not exist, if exist then update driver assignment to new driver and update assignment history
+    assignment= await get_assignment(session=session,order_id=order_id,role=type)
+    logger.info(f"Existing assignment for order {order_id} and role {type}: {assignment}")
+    if assignment is None:
+        assignment= await create_assignment(session=session,order_id=order.id,role=type,driver_id=drivers[0].id)
+    else: 
+            assignment.driver_id=drivers[0].id
+            session.add(assignment)
+            await session.commit()
+            await session.refresh(assignment)
     await set_timeout_assign_driver(session=session,assignment_id=assignment.id)
 
 
 async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
     
+
+    # Select driver assignment history to get list of driver that already assigned for this order and role, then exclude those driver in the next auto assignment
     his_ass_statement= select(DriverAssignmentHistory).where(DriverAssignmentHistory.assignment_id==assignment_id)
 
     his_res = await session.exec(his_ass_statement)
@@ -662,7 +680,7 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
     shop_statement= select(LaundryBusiness).where(LaundryBusiness.id==assignment.order.business_id)
     shop_res =await session.exec(shop_statement)
     shop = shop_res.one_or_none()
-    remaining_time = calulate_remaining_time(assigned_time=assignment.assignedAt,expired_in_sec=60)
+    remaining_time = calulate_remaining_time(assigned_time=assignment.assigned_at,expired_in_sec=60)
     # Broadcast Websocket to driver
 
     order_data =OrderReadV2.model_validate(assignment.order).model_dump(mode="json")
