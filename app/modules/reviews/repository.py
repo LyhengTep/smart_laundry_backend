@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -9,17 +10,24 @@ from app.modules.reviews.models import ShopReview
 
 
 async def get_by_id(review_id: UUID, session: AsyncSession) -> ShopReview | None:
-    return await session.get(ShopReview, review_id)
+    result = await session.exec(
+        select(ShopReview)
+        .where(ShopReview.id == review_id)
+        .options(selectinload(ShopReview.customer))
+    )
+    return result.first()
 
 
 async def get_by_business_and_customer(
     business_id: UUID, customer_id: UUID, session: AsyncSession
 ) -> ShopReview | None:
     result = await session.exec(
-        select(ShopReview).where(
+        select(ShopReview)
+        .where(
             ShopReview.business_id == business_id,
             ShopReview.customer_id == customer_id,
         )
+        .options(selectinload(ShopReview.customer))
     )
     return result.first()
 
@@ -34,6 +42,7 @@ async def list_by_business(
     statement = (
         select(ShopReview)
         .where(ShopReview.business_id == business_id)
+        .options(selectinload(ShopReview.customer))
         .order_by(ShopReview.created_at.desc())
         .offset(offset)
         .limit(size)
@@ -54,8 +63,12 @@ async def list_by_business(
 async def save(review: ShopReview, session: AsyncSession) -> ShopReview:
     session.add(review)
     await session.commit()
-    await session.refresh(review)
-    return review
+    result = await session.exec(
+        select(ShopReview)
+        .where(ShopReview.id == review.id)
+        .options(selectinload(ShopReview.customer))
+    )
+    return result.one()
 
 
 async def delete(review: ShopReview, session: AsyncSession) -> None:

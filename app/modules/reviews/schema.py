@@ -4,6 +4,8 @@ from uuid import UUID
 from pydantic import field_validator, model_validator
 from sqlmodel import SQLModel
 
+from app.shared.all_schema import UserReadBasicRead
+
 
 
 
@@ -57,6 +59,7 @@ class ShopReviewRead(SQLModel):
     customer_id: UUID
     rating: int
     comment: str | None
+    customer: UserReadBasicRead | None = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

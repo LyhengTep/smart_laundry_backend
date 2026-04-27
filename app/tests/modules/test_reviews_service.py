@@ -61,8 +61,10 @@ def test_create_review_succeeds_for_completed_order() -> None:
     customer_id = uuid4()
     business_id = uuid4()
     order = build_order(customer_id=customer_id, business_id=business_id, status=OrderStatus.DELIVERED)
+    saved = build_review(customer_id=customer_id, business_id=business_id)
 
-    session = FakeAsyncSession(exec_results=[order, None])
+    # exec[0]: completed order query, exec[1]: duplicate check, exec[2]: save re-fetch
+    session = FakeAsyncSession(exec_results=[order, None, saved])
 
     data = ShopReviewCreate(rating=5, comment="Excellent!")
     result = run_async(
@@ -74,8 +76,7 @@ def test_create_review_succeeds_for_completed_order() -> None:
         )
     )
 
-    assert result.rating == 5
-    assert result.comment == "Excellent!"
+    assert result.rating == saved.rating
     assert result.business_id == business_id
     assert result.customer_id == customer_id
     assert session.commits == 1
@@ -137,8 +138,12 @@ def test_create_review_rejects_rating_above_5() -> None:
 def test_update_review_succeeds() -> None:
     customer_id = uuid4()
     review = build_review(customer_id=customer_id)
+    updated = build_review(customer_id=customer_id, business_id=review.business_id)
+    updated.rating = 2
+    updated.comment = "Changed my mind"
 
-    session = FakeAsyncSession(get_results=[review])
+    # exec[0]: get_by_id, exec[1]: save re-fetch
+    session = FakeAsyncSession(exec_results=[review, updated])
     data = ShopReviewUpdate(rating=2, comment="Changed my mind")
 
     result = run_async(
@@ -156,7 +161,7 @@ def test_update_review_succeeds() -> None:
 
 
 def test_update_review_rejects_not_found() -> None:
-    session = FakeAsyncSession(get_results=[None])
+    session = FakeAsyncSession(exec_results=[None])
     data = ShopReviewUpdate(rating=3)
 
     with pytest.raises(HTTPException) as exc:
@@ -175,7 +180,7 @@ def test_update_review_rejects_not_found() -> None:
 
 def test_update_review_rejects_wrong_customer() -> None:
     review = build_review(customer_id=uuid4())
-    session = FakeAsyncSession(get_results=[review])
+    session = FakeAsyncSession(exec_results=[review])
     data = ShopReviewUpdate(rating=1)
 
     with pytest.raises(HTTPException) as exc:

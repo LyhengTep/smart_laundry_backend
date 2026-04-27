@@ -18,12 +18,12 @@ router = APIRouter(prefix="/businesses/{business_id}/reviews", tags=["reviews"])
 async def submit_review(
     business_id: UUID,
     data: ShopReviewCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ShopReviewRead:
     return await svc.create_review(
         business_id=business_id,
-        customer_id=current_user.id,
+        customer_id=UUID(current_user),
         data=data,
         session=session,
     )
@@ -52,12 +52,12 @@ async def update_review(
     business_id: UUID,
     review_id: UUID,
     data: ShopReviewUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ShopReviewRead:
     return await svc.update_review(
         review_id=review_id,
-        customer_id=current_user.id,
+        customer_id=UUID(current_user),
         data=data,
         session=session,
     )
@@ -67,11 +67,11 @@ async def update_review(
 async def delete_review(
     business_id: UUID,
     review_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     await svc.delete_review(
         review_id=review_id,
-        customer_id=current_user.id,
+        customer_id=UUID(current_user),
         session=session,
     )
