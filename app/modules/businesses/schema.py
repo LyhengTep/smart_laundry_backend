@@ -7,6 +7,7 @@ from rich import status
 from sqlmodel import SQLModel
 
 from app.modules.business_services.schema import BusinessServiceRead, BusinessServiceUpdate
+from app.modules.reviews.schema import ShopReviewSummary
 
 
 class BusinessRead(SQLModel):
@@ -26,6 +27,8 @@ class BusinessRead(SQLModel):
     close_time: time
     created_at: datetime
     updated_at: datetime
+    review_summary: ShopReviewSummary | None = None
+    model_config = {"from_attributes": True}
 
 
 class BusinessWrite(SQLModel):

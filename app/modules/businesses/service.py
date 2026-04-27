@@ -1,23 +1,46 @@
 
 from datetime import datetime
 import logging
-from math import log
 from uuid import UUID
 import uuid
-from sentry_sdk import session
-from sentry_sdk.utils import now
-from sqlalchemy import func,and_, or_
+from sqlalchemy import func, and_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.api.reponse_model import Page
-from app.exceptions import user
 from app.exceptions.http import create_401, create_404
 from app.modules.business_services.model import BusinessService
 from app.modules.businesses.models import LaundryBusiness, ShopStatus
 from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, SingleBusinessRead
-
+from app.modules.reviews.models import ShopReview
+from app.modules.reviews.schema import ShopReviewSummary
 from app.modules.users.models import User, UserStatus
+
+
+async def _batch_review_summaries(
+    business_ids: list[UUID], session: AsyncSession
+) -> dict[UUID, ShopReviewSummary]:
+    if not business_ids:
+        return {}
+    rows = (
+        await session.exec(
+            select(
+                ShopReview.business_id,
+                func.coalesce(func.avg(ShopReview.rating), 0).label("avg_rating"),
+                func.count(ShopReview.id).label("total"),
+            )
+            .where(ShopReview.business_id.in_(business_ids))
+            .group_by(ShopReview.business_id)
+        )
+    ).all()
+    return {
+        row.business_id: ShopReviewSummary(
+            business_id=row.business_id,
+            average_rating=round(float(row.avg_rating), 1),
+            total_reviews=row.total,
+        )
+        for row in rows
+    }
 
 async def list_businesses(session: AsyncSession, page: int, size: int,status: UserStatus,is_open:bool=None, q:str=None) -> Page[BusinessRead]:
 
@@ -49,20 +72,32 @@ async def list_businesses(session: AsyncSession, page: int, size: int,status: Us
 
  
     result = await session.exec(statement)
-    businesses= result.all()
-    logging.info("======= Query businesses result ======= %s",len(businesses))
-    return Page[BusinessRead](items=businesses,total=total,page=page,size=size,pages=(total+size-1)//size)
+    businesses = result.all()
+    logging.info("======= Query businesses result ======= %s", len(businesses))
+
+    summaries = await _batch_review_summaries([b.id for b in businesses], session)
+    items = []
+    for b in businesses:
+        read = BusinessRead.model_validate(b)
+        read.review_summary = summaries.get(b.id)
+        items.append(read)
+
+    return Page[BusinessRead](items=items, total=total, page=page, size=size, pages=(total + size - 1) // size)
 
 
 async def list_one_business(id: UUID, session: AsyncSession) -> SingleBusinessRead:
-    statement= select(LaundryBusiness).where(LaundryBusiness.id==id).options(selectinload(LaundryBusiness.services).selectinload(BusinessService.laundry_service))
+    statement = select(LaundryBusiness).where(LaundryBusiness.id == id).options(selectinload(LaundryBusiness.services).selectinload(BusinessService.laundry_service))
     result = await session.exec(statement)
-    business= result.first()
+    business = result.first()
 
     print(f"Business found: {business.services}")
     if not business:
         raise create_404("Business not found")
-    return business
+
+    summaries = await _batch_review_summaries([business.id], session)
+    read = SingleBusinessRead.model_validate(business)
+    read.review_summary = summaries.get(business.id)
+    return read
 
 
 
@@ -121,7 +156,11 @@ async def edit_business(id: UUID, data: BusinessUpdate, current_user: uuid.UUID,
     print(f"Business found: {business.services}")
     if not business:
         raise create_404("Business not found")
-    return business
+
+    summaries = await _batch_review_summaries([business.id], session)
+    read = SingleBusinessRead.model_validate(business)
+    read.review_summary = summaries.get(business.id)
+    return read
 
 async def create_business( data: BusinessWrite,current_user: uuid.UUID,session: AsyncSession) -> BusinessRead:
      user_result= await session.exec(select(User).where(User.id==current_user,User.status==UserStatus.ACTIVE,User.role=="MERCHANT"))
