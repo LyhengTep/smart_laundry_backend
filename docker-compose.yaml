@@ -41,7 +41,7 @@ services:
     container_name: smart-laundry-backend
     restart: unless-stopped
     # image: lyheng/smartlaundry_backend:0.0.1-dev.6
-    image: lyheng/smartlaundry_backend:db253692a2bfa008ad8f0eee1718d662c51548c2
+    image: lyheng/smartlaundry_backend:5065be59e5705a8e4e89562d5ae7f26997560507
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`smart-laundry.lyhengtep.com`) && PathPrefix(`/api`) || PathPrefix(`/public/uploads`)"
@@ -71,7 +71,7 @@ services:
       - postgres
   web: 
     # image: lyheng/smart-laundry-web:0.0.1-dev.5
-    image: lyheng/smart-laundry-web:abddfc4e0ac64d6be4ac30c8b00a24012700872c
+    image: lyheng/smart-laundry-web:9bfe66975fe99d9a0c986650a241e1ade0193d70
     platform: linux/amd64
     labels:
       - "traefik.enable=true"
