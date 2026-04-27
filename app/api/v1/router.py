@@ -13,6 +13,7 @@ from app.modules.notifications.router import router as notifications_router
 from app.modules.realtime.router import router as realtime_router
 from app.modules.device_tokens.router import router as device_tokens_router
 from app.modules.payments.router import router as payments_router
+from app.modules.reviews.router import router as reviews_router
 
 api_router = APIRouter()
 api_router.include_router(users_router)
@@ -27,3 +28,4 @@ api_router.include_router(notifications_router)
 api_router.include_router(realtime_router)
 api_router.include_router(device_tokens_router)
 api_router.include_router(payments_router)
+api_router.include_router(reviews_router)

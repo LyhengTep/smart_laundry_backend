@@ -7,3 +7,4 @@ from app.modules.orders.models import Order, OrderItem
 from app.modules.notifications.models import Notification
 from app.modules.device_tokens.models import DeviceToken
 from app.modules.payments.models import Payment
+from app.modules.reviews.models import ShopReview
