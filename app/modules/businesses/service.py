@@ -3,6 +3,7 @@ from datetime import datetime
 import logging
 from uuid import UUID
 import uuid
+from venv import logger
 from sqlalchemy import func, and_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,7 +18,7 @@ from app.modules.reviews.models import ShopReview
 from app.modules.reviews.schema import ShopReviewSummary
 from app.modules.users.models import User, UserStatus
 
-
+logger=logging.getLogger(__name__)
 async def _batch_review_summaries(
     business_ids: list[UUID], session: AsyncSession
 ) -> dict[UUID, ShopReviewSummary]:
@@ -42,6 +43,33 @@ async def _batch_review_summaries(
         )
         for row in rows
     }
+
+async def list_my_businesses(
+    owner_id: uuid.UUID, session: AsyncSession, page: int, size: int
+) -> Page[BusinessRead]:
+    offset = (page - 1) * size
+    statement = (
+        select(LaundryBusiness)
+        .where(LaundryBusiness.owner_id == owner_id)
+        .options(selectinload(LaundryBusiness.owner))
+        .offset(offset)
+        .limit(size)
+    )
+    count_statement = select(func.count(LaundryBusiness.id)).where(
+        LaundryBusiness.owner_id == owner_id
+    )
+    total = (await session.exec(count_statement)).one()
+    businesses = (await session.exec(statement)).all()
+
+    summaries = await _batch_review_summaries([b.id for b in businesses], session)
+    items = []
+    for b in businesses:
+        read = BusinessRead.model_validate(b)
+        read.review_summary = summaries.get(b.id)
+        items.append(read)
+
+    return Page[BusinessRead](items=items, total=total, page=page, size=size, pages=(total + size - 1) // size)
+
 
 async def list_businesses(session: AsyncSession, page: int, size: int,status: UserStatus,is_open:bool=None, q:str=None) -> Page[BusinessRead]:
 
@@ -201,6 +229,7 @@ async def toggle_shop_status(
     business = business_result.first()
     if not business:
         raise create_404("Business not found")
+    logger.info(f"business owner: {business.owner_id}, current_user: {current_user}")
     if business.owner_id != UUID(current_user):
         raise create_403("You are not authorized to manage this shop")
 

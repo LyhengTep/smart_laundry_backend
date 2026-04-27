@@ -16,13 +16,23 @@ from app.shared.passwords import get_current_user
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
 
+@router.get("/mine", response_model=Page[BusinessRead])
+async def list_my_businesses(
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    current_user: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Page[BusinessRead]:
+    return await svc.list_my_businesses(current_user, session, page, size)
+
+
 @router.get("/",response_model=Page[BusinessRead])
 async def list_businesses(page: int =Query(1,ge=1),size: int=Query(10,ge=1,le=100),
                        status: Optional[UserStatus]=Query(None),
                        is_open: Optional[bool]=Query(None),
                        q: Optional[str]=Query(None),
                        session: AsyncSession = Depends(get_session)
-                       
+
                        )->list[BusinessRead]:
 
     return await svc.list_businesses(session,page,size,status,is_open,q)
