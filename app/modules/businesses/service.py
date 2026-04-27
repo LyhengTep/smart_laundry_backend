@@ -8,10 +8,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.api.reponse_model import Page
-from app.exceptions.http import create_401, create_404
+from app.exceptions.http import create_401, create_403, create_404, create_409
 from app.modules.business_services.model import BusinessService
 from app.modules.businesses.models import LaundryBusiness, ShopStatus
-from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, SingleBusinessRead
+from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, ShopStatusAction, ShopStatusResponse, ShopStatusUpdate, SingleBusinessRead
+from app.modules.orders.models import Order, OrderStatus
 from app.modules.reviews.models import ShopReview
 from app.modules.reviews.schema import ShopReviewSummary
 from app.modules.users.models import User, UserStatus
@@ -174,6 +175,78 @@ async def create_business( data: BusinessWrite,current_user: uuid.UUID,session: 
      await session.commit()
      await session.refresh(business)
      return BusinessRead.model_validate(business)
+
+_ACTIVE_ORDER_STATUSES = [
+    OrderStatus.PENDING,
+    OrderStatus.CONFIRMED,
+    OrderStatus.PICKUP_ASSIGNED,
+    OrderStatus.OUT_FOR_PICKUP,
+    OrderStatus.PICKED_UP,
+    OrderStatus.DELIVERED_TO_SHOP,
+    OrderStatus.PROCESSING,
+    OrderStatus.READY_FOR_DELIVERY,
+    OrderStatus.DELIVERY_ASSIGNED,
+    OrderStatus.OUT_FOR_DELIVERY,
+    OrderStatus.PICKED_UP_DELIVERY,
+]
+
+
+async def toggle_shop_status(
+    business_id: UUID,
+    data: ShopStatusUpdate,
+    current_user: uuid.UUID,
+    session: AsyncSession,
+) -> ShopStatusResponse:
+    business_result = await session.exec(select(LaundryBusiness).where(LaundryBusiness.id == business_id))
+    business = business_result.first()
+    if not business:
+        raise create_404("Business not found")
+    if business.owner_id != UUID(current_user):
+        raise create_403("You are not authorized to manage this shop")
+
+    if data.action == ShopStatusAction.CLOSE:
+        if business.status == ShopStatus.CLOSED:
+            raise create_409("Shop is already closed")
+
+        if not data.force:
+            active_count_result = await session.exec(
+                select(func.count(Order.id)).where(
+                    Order.business_id == business_id,
+                    Order.status.in_(_ACTIVE_ORDER_STATUSES),
+                )
+            )
+            active_count = active_count_result.one()
+            if active_count > 0:
+                return ShopStatusResponse(
+                    shop_id=business_id,
+                    status=business.status.value,
+                    message="Shop not closed yet. Confirm to proceed.",
+                    warning=f"You have {active_count} active order{'s' if active_count != 1 else ''}. Closing will not cancel existing orders.",
+                    active_order_count=active_count,
+                )
+
+        business.status = ShopStatus.CLOSED
+        session.add(business)
+        await session.commit()
+        return ShopStatusResponse(
+            shop_id=business_id,
+            status=ShopStatus.CLOSED.value,
+            message="Shop has been closed successfully.",
+        )
+
+    # action == OPEN
+    if business.status in (ShopStatus.OPEN, ShopStatus.APPROVED):
+        raise create_409("Shop is already open")
+
+    business.status = ShopStatus.OPEN
+    session.add(business)
+    await session.commit()
+    return ShopStatusResponse(
+        shop_id=business_id,
+        status=ShopStatus.OPEN.value,
+        message="Shop is now open.",
+    )
+
 
 async def remove_business(business_id: UUID, current_user: uuid.UUID, session: AsyncSession) -> None:
     business_result = await session.exec(select(LaundryBusiness).where(LaundryBusiness.id == business_id))

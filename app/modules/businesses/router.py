@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.reponse_model import Page
 from app.db.engine import get_session
-from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, SingleBusinessRead
+from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, ShopStatusResponse, ShopStatusUpdate, SingleBusinessRead
 from app.modules.businesses import service as svc
 from app.modules.payments import service as payment_svc
 from app.modules.payments.schema import BusinessRevenueRead
@@ -40,6 +40,16 @@ async def create_business(data:BusinessWrite,current_user: str = Depends(get_cur
 @router.put("/{business_id}",response_model=SingleBusinessRead)
 async def edit_business(business_id: UUID, data: BusinessUpdate,current_user: str = Depends(get_current_user),session: AsyncSession = Depends(get_session)):
     return await svc.edit_business(business_id,data,current_user,session)
+
+@router.patch("/{business_id}/shop-status", response_model=ShopStatusResponse)
+async def toggle_shop_status(
+    business_id: UUID,
+    data: ShopStatusUpdate,
+    current_user: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ShopStatusResponse:
+    return await svc.toggle_shop_status(business_id, data, current_user, session)
+
 
 @router.delete("/{business_id}")
 async def remove_business(business_id: UUID,current_user: str = Depends(get_current_user),session: AsyncSession = Depends(get_session)):

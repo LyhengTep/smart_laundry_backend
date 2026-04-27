@@ -4,9 +4,10 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
+import app.db.base  # noqa: F401
 from app.modules.businesses import service as business_service
 from app.modules.businesses.models import LaundryBusiness, ShopStatus
-from app.modules.businesses.schema import BusinessWrite
+from app.modules.businesses.schema import BusinessWrite, ShopStatusAction, ShopStatusUpdate
 from app.modules.users.models import RoleName, User, UserStatus
 from app.tests.modules.conftest import FakeAsyncSession, run_async
 
@@ -80,3 +81,161 @@ def test_remove_business_rejects_non_owner() -> None:
         run_async(business_service.remove_business(business.id, uuid4(), session))
 
     assert exc.value.status_code == 401
+
+
+# ===========================================================================
+# toggle_shop_status
+# exec_results order:
+#   [0] = business lookup (.first())
+#   [1] = active order count (.one())  — only when action=CLOSE without force
+# ===========================================================================
+
+def _build_toggleable_business(owner_id, status: ShopStatus = ShopStatus.OPEN) -> LaundryBusiness:
+    b = build_business(owner_id)
+    b.status = status
+    return b
+
+
+def test_close_open_shop_succeeds() -> None:
+    owner_id = uuid4()
+    business = _build_toggleable_business(owner_id, ShopStatus.OPEN)
+    session = FakeAsyncSession(exec_results=[business, 0])
+
+    result = run_async(
+        business_service.toggle_shop_status(
+            business_id=business.id,
+            data=ShopStatusUpdate(action=ShopStatusAction.CLOSE),
+            current_user=str(owner_id),
+            session=session,
+        )
+    )
+
+    assert result.status == ShopStatus.CLOSED.value
+    assert session.commits == 1
+
+
+def test_open_closed_shop_succeeds() -> None:
+    owner_id = uuid4()
+    business = _build_toggleable_business(owner_id, ShopStatus.CLOSED)
+    session = FakeAsyncSession(exec_results=[business])
+
+    result = run_async(
+        business_service.toggle_shop_status(
+            business_id=business.id,
+            data=ShopStatusUpdate(action=ShopStatusAction.OPEN),
+            current_user=str(owner_id),
+            session=session,
+        )
+    )
+
+    assert result.status == ShopStatus.OPEN.value
+    assert session.commits == 1
+
+
+def test_close_already_closed_returns_409() -> None:
+    owner_id = uuid4()
+    business = _build_toggleable_business(owner_id, ShopStatus.CLOSED)
+    session = FakeAsyncSession(exec_results=[business])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            business_service.toggle_shop_status(
+                business_id=business.id,
+                data=ShopStatusUpdate(action=ShopStatusAction.CLOSE),
+                current_user=str(owner_id),
+                session=session,
+            )
+        )
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "Shop is already closed"
+
+
+def test_open_already_open_returns_409() -> None:
+    owner_id = uuid4()
+    business = _build_toggleable_business(owner_id, ShopStatus.OPEN)
+    session = FakeAsyncSession(exec_results=[business])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            business_service.toggle_shop_status(
+                business_id=business.id,
+                data=ShopStatusUpdate(action=ShopStatusAction.OPEN),
+                current_user=str(owner_id),
+                session=session,
+            )
+        )
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "Shop is already open"
+
+
+def test_close_with_active_orders_returns_warning() -> None:
+    owner_id = uuid4()
+    business = _build_toggleable_business(owner_id, ShopStatus.OPEN)
+    session = FakeAsyncSession(exec_results=[business, 3])
+
+    result = run_async(
+        business_service.toggle_shop_status(
+            business_id=business.id,
+            data=ShopStatusUpdate(action=ShopStatusAction.CLOSE, force=False),
+            current_user=str(owner_id),
+            session=session,
+        )
+    )
+
+    assert result.active_order_count == 3
+    assert result.warning is not None
+    assert "3 active orders" in result.warning
+    assert session.commits == 0
+
+
+def test_close_with_active_orders_force_succeeds() -> None:
+    owner_id = uuid4()
+    business = _build_toggleable_business(owner_id, ShopStatus.OPEN)
+    session = FakeAsyncSession(exec_results=[business])
+
+    result = run_async(
+        business_service.toggle_shop_status(
+            business_id=business.id,
+            data=ShopStatusUpdate(action=ShopStatusAction.CLOSE, force=True),
+            current_user=str(owner_id),
+            session=session,
+        )
+    )
+
+    assert result.status == ShopStatus.CLOSED.value
+    assert session.commits == 1
+
+
+def test_toggle_shop_unauthorized_returns_403() -> None:
+    business = _build_toggleable_business(uuid4(), ShopStatus.OPEN)
+    session = FakeAsyncSession(exec_results=[business])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            business_service.toggle_shop_status(
+                business_id=business.id,
+                data=ShopStatusUpdate(action=ShopStatusAction.CLOSE),
+                current_user=str(uuid4()),
+                session=session,
+            )
+        )
+
+    assert exc.value.status_code == 403
+
+
+def test_toggle_shop_not_found_returns_404() -> None:
+    session = FakeAsyncSession(exec_results=[None])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            business_service.toggle_shop_status(
+                business_id=uuid4(),
+                data=ShopStatusUpdate(action=ShopStatusAction.CLOSE),
+                current_user=str(uuid4()),
+                session=session,
+            )
+        )
+
+    assert exc.value.status_code == 404

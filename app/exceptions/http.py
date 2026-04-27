@@ -19,5 +19,8 @@ def create_403(msg:str)->HTTPException:
     return HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=msg)
 
 
+def create_409(msg: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg)
+
 def create_500(msg:str)->HTTPException:
     return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail=msg)

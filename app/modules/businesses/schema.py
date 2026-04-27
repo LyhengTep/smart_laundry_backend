@@ -1,7 +1,7 @@
 
 
 from datetime import datetime, time
-
+from enum import Enum
 from uuid import UUID
 from rich import status
 from sqlmodel import SQLModel
@@ -51,3 +51,21 @@ class BusinessUpdate(BusinessWrite):
 
 class SingleBusinessRead(BusinessRead):
     services: list[BusinessServiceRead]
+
+
+class ShopStatusAction(str, Enum):
+    CLOSE = "CLOSE"
+    OPEN = "OPEN"
+
+
+class ShopStatusUpdate(SQLModel):
+    action: ShopStatusAction
+    force: bool = False
+
+
+class ShopStatusResponse(SQLModel):
+    shop_id: UUID
+    status: str
+    message: str
+    warning: str | None = None
+    active_order_count: int | None = None
