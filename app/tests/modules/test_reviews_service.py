@@ -5,18 +5,14 @@ import pytest
 from fastapi import HTTPException
 
 import app.db.base  # noqa: F401
-from app.modules.orders.models import Order, OrderStatus, PickupMethod, DeliveryFeePaidBy
+from app.modules.orders.models import Order, OrderStatus, PickupMethod
 from app.modules.reviews import service as review_service
 from app.modules.reviews.models import ShopReview
 from app.modules.reviews.schema import ShopReviewCreate, ShopReviewUpdate
 from app.tests.modules.conftest import FakeAsyncSession, run_async
 
 
-def build_order(
-    customer_id=None,
-    business_id=None,
-    status: OrderStatus = OrderStatus.DELIVERED,
-) -> Order:
+def build_order(customer_id=None, business_id=None, status: OrderStatus = OrderStatus.DELIVERED) -> Order:
     now = datetime.now(timezone.utc)
     return Order(
         id=uuid4(),
@@ -42,13 +38,12 @@ def build_order(
     )
 
 
-def build_review(customer_id=None, business_id=None, order_id=None) -> ShopReview:
+def build_review(customer_id=None, business_id=None) -> ShopReview:
     now = datetime.now(timezone.utc)
     return ShopReview(
         id=uuid4(),
         business_id=business_id or uuid4(),
         customer_id=customer_id or uuid4(),
-        order_id=order_id or uuid4(),
         rating=4,
         comment="Great service",
         created_at=now,
@@ -56,21 +51,20 @@ def build_review(customer_id=None, business_id=None, order_id=None) -> ShopRevie
     )
 
 
-# ---------------------------------------------------------------------------
-# Happy path
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Story 1: Customer Leaves a Review
+# exec_results[0] = completed order query (.first())
+# exec_results[1] = get_by_business_and_customer query (.first())
+# ===========================================================================
 
 def test_create_review_succeeds_for_completed_order() -> None:
     customer_id = uuid4()
     business_id = uuid4()
     order = build_order(customer_id=customer_id, business_id=business_id, status=OrderStatus.DELIVERED)
 
-    session = FakeAsyncSession(
-        get_results=[order],           # session.get(Order, order_id)
-        exec_results=[None],           # get_by_order_id → no existing review
-    )
+    session = FakeAsyncSession(exec_results=[order, None])
 
-    data = ShopReviewCreate(order_id=order.id, rating=5, comment="Excellent!")
+    data = ShopReviewCreate(rating=5, comment="Excellent!")
     result = run_async(
         review_service.create_review(
             business_id=business_id,
@@ -87,22 +81,32 @@ def test_create_review_succeeds_for_completed_order() -> None:
     assert session.commits == 1
 
 
-# ---------------------------------------------------------------------------
-# Already reviewed
-# ---------------------------------------------------------------------------
+def test_create_review_rejects_no_completed_order() -> None:
+    session = FakeAsyncSession(exec_results=[None])
 
-def test_create_review_rejects_duplicate_order_review() -> None:
+    data = ShopReviewCreate(rating=4)
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            review_service.create_review(
+                business_id=uuid4(),
+                customer_id=uuid4(),
+                data=data,
+                session=session,
+            )
+        )
+
+    assert exc.value.status_code == 400
+
+
+def test_create_review_rejects_already_reviewed() -> None:
     customer_id = uuid4()
     business_id = uuid4()
-    order = build_order(customer_id=customer_id, business_id=business_id, status=OrderStatus.DELIVERED)
-    existing_review = build_review(customer_id=customer_id, business_id=business_id, order_id=order.id)
+    order = build_order(customer_id=customer_id, business_id=business_id)
+    existing = build_review(customer_id=customer_id, business_id=business_id)
 
-    session = FakeAsyncSession(
-        get_results=[order],
-        exec_results=[existing_review],   # get_by_order_id → already exists
-    )
+    session = FakeAsyncSession(exec_results=[order, existing])
 
-    data = ShopReviewCreate(order_id=order.id, rating=3)
+    data = ShopReviewCreate(rating=3)
     with pytest.raises(HTTPException) as exc:
         run_async(
             review_service.create_review(
@@ -116,93 +120,14 @@ def test_create_review_rejects_duplicate_order_review() -> None:
     assert exc.value.status_code == 409
 
 
-# ---------------------------------------------------------------------------
-# Order not completed
-# ---------------------------------------------------------------------------
-
-def test_create_review_rejects_non_completed_order() -> None:
-    customer_id = uuid4()
-    business_id = uuid4()
-    order = build_order(customer_id=customer_id, business_id=business_id, status=OrderStatus.PROCESSING)
-
-    session = FakeAsyncSession(get_results=[order], exec_results=[])
-
-    data = ShopReviewCreate(order_id=order.id, rating=4)
-    with pytest.raises(HTTPException) as exc:
-        run_async(
-            review_service.create_review(
-                business_id=business_id,
-                customer_id=customer_id,
-                data=data,
-                session=session,
-            )
-        )
-
-    assert exc.value.status_code == 400
-
-
-# ---------------------------------------------------------------------------
-# Invalid rating (schema-level validation)
-# ---------------------------------------------------------------------------
-
 def test_create_review_rejects_rating_below_1() -> None:
     with pytest.raises(Exception):
-        ShopReviewCreate(order_id=uuid4(), rating=0)
+        ShopReviewCreate(rating=0)
 
 
 def test_create_review_rejects_rating_above_5() -> None:
     with pytest.raises(Exception):
-        ShopReviewCreate(order_id=uuid4(), rating=6)
-
-
-# ---------------------------------------------------------------------------
-# Order does not belong to this customer
-# ---------------------------------------------------------------------------
-
-def test_create_review_rejects_wrong_customer() -> None:
-    business_id = uuid4()
-    order = build_order(customer_id=uuid4(), business_id=business_id, status=OrderStatus.DELIVERED)
-    different_customer = uuid4()
-
-    session = FakeAsyncSession(get_results=[order], exec_results=[])
-
-    data = ShopReviewCreate(order_id=order.id, rating=4)
-    with pytest.raises(HTTPException) as exc:
-        run_async(
-            review_service.create_review(
-                business_id=business_id,
-                customer_id=different_customer,
-                data=data,
-                session=session,
-            )
-        )
-
-    assert exc.value.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# Order does not belong to this shop
-# ---------------------------------------------------------------------------
-
-def test_create_review_rejects_wrong_business() -> None:
-    customer_id = uuid4()
-    order = build_order(customer_id=customer_id, business_id=uuid4(), status=OrderStatus.DELIVERED)
-    different_business = uuid4()
-
-    session = FakeAsyncSession(get_results=[order], exec_results=[])
-
-    data = ShopReviewCreate(order_id=order.id, rating=4)
-    with pytest.raises(HTTPException) as exc:
-        run_async(
-            review_service.create_review(
-                business_id=different_business,
-                customer_id=customer_id,
-                data=data,
-                session=session,
-            )
-        )
-
-    assert exc.value.status_code == 400
+        ShopReviewCreate(rating=6)
 
 
 # ===========================================================================

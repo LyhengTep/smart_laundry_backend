@@ -5,8 +5,9 @@ from pydantic import field_validator, model_validator
 from sqlmodel import SQLModel
 
 
+
+
 class ShopReviewCreate(SQLModel):
-    order_id: UUID
     rating: int
     comment: str | None = None
 
@@ -54,7 +55,6 @@ class ShopReviewRead(SQLModel):
     id: UUID
     business_id: UUID
     customer_id: UUID
-    order_id: UUID
     rating: int
     comment: str | None
     created_at: datetime

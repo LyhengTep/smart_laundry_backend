@@ -28,28 +28,27 @@ async def create_review(
     data: ShopReviewCreate,
     session: AsyncSession,
 ) -> ShopReviewRead:
-    order = await session.get(Order, data.order_id)
-    if order is None:
-        raise create_404("Order not found")
+    has_completed_order = (
+        await session.exec(
+            select(Order).where(
+                Order.customer_id == customer_id,
+                Order.business_id == business_id,
+                Order.status == OrderStatus.DELIVERED,
+            ).limit(1)
+        )
+    ).first()
+    if has_completed_order is None:
+        raise create_400("You can only review a shop after completing an order with them")
 
-    if order.customer_id != customer_id:
-        from app.exceptions.http import create_401
-        raise create_401("Order does not belong to you")
-
-    if order.business_id != business_id:
-        raise create_400("Order does not belong to this shop")
-
-    if order.status != OrderStatus.DELIVERED:
-        raise create_400("You can only review a shop after your order is completed")
-
-    existing = await repo.get_by_order_id(order_id=data.order_id, session=session)
+    existing = await repo.get_by_business_and_customer(
+        business_id=business_id, customer_id=customer_id, session=session
+    )
     if existing is not None:
-        raise create_409("You have already submitted a review for this order")
+        raise create_409("You have already reviewed this shop")
 
     review = ShopReview(
         business_id=business_id,
         customer_id=customer_id,
-        order_id=data.order_id,
         rating=data.rating,
         comment=data.comment,
     )
