@@ -8,7 +8,7 @@ import app.db.base  # noqa: F401
 from app.modules.orders.models import Order, OrderStatus, PickupMethod, DeliveryFeePaidBy
 from app.modules.reviews import service as review_service
 from app.modules.reviews.models import ShopReview
-from app.modules.reviews.schema import ShopReviewCreate
+from app.modules.reviews.schema import ShopReviewCreate, ShopReviewUpdate
 from app.tests.modules.conftest import FakeAsyncSession, run_async
 
 
@@ -203,3 +203,81 @@ def test_create_review_rejects_wrong_business() -> None:
         )
 
     assert exc.value.status_code == 400
+
+
+# ===========================================================================
+# Story 2: Customer Edits Their Review
+# ===========================================================================
+
+def test_update_review_succeeds() -> None:
+    customer_id = uuid4()
+    review = build_review(customer_id=customer_id)
+
+    session = FakeAsyncSession(get_results=[review])
+    data = ShopReviewUpdate(rating=2, comment="Changed my mind")
+
+    result = run_async(
+        review_service.update_review(
+            review_id=review.id,
+            customer_id=customer_id,
+            data=data,
+            session=session,
+        )
+    )
+
+    assert result.rating == 2
+    assert result.comment == "Changed my mind"
+    assert session.commits == 1
+
+
+def test_update_review_rejects_not_found() -> None:
+    session = FakeAsyncSession(get_results=[None])
+    data = ShopReviewUpdate(rating=3)
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            review_service.update_review(
+                review_id=uuid4(),
+                customer_id=uuid4(),
+                data=data,
+                session=session,
+            )
+        )
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "You have not reviewed this shop yet"
+
+
+def test_update_review_rejects_wrong_customer() -> None:
+    review = build_review(customer_id=uuid4())
+    session = FakeAsyncSession(get_results=[review])
+    data = ShopReviewUpdate(rating=1)
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(
+            review_service.update_review(
+                review_id=review.id,
+                customer_id=uuid4(),
+                data=data,
+                session=session,
+            )
+        )
+
+    assert exc.value.status_code == 403
+    assert exc.value.detail == "You are not authorized to edit this review"
+
+
+def test_update_review_rejects_invalid_rating() -> None:
+    with pytest.raises(Exception) as exc:
+        ShopReviewUpdate(rating=0)
+    assert "Rating must be between 1 and 5" in str(exc.value)
+
+    with pytest.raises(Exception) as exc:
+        ShopReviewUpdate(rating=6)
+    assert "Rating must be between 1 and 5" in str(exc.value)
+
+
+def test_update_review_rejects_empty_payload() -> None:
+    with pytest.raises(Exception) as exc:
+        ShopReviewUpdate()
+    assert "At least one of rating or comment must be provided" in str(exc.value)

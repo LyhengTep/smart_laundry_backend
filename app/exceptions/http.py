@@ -15,5 +15,9 @@ def create_401(msg:str)->HTTPException:
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail=msg)
 
 
+def create_403(msg:str)->HTTPException:
+    return HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=msg)
+
+
 def create_500(msg:str)->HTTPException:
     return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail=msg)

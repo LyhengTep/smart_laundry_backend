@@ -96,13 +96,14 @@ async def update_review(
     data: ShopReviewUpdate,
     session: AsyncSession,
 ) -> ShopReviewRead:
+    from app.exceptions.http import create_403
+
     review = await repo.get_by_id(review_id=review_id, session=session)
     if review is None:
-        raise create_404("Review not found")
+        raise create_404("You have not reviewed this shop yet")
 
     if review.customer_id != customer_id:
-        from app.exceptions.http import create_401
-        raise create_401("You can only edit your own review")
+        raise create_403("You are not authorized to edit this review")
 
     if data.rating is not None:
         review.rating = data.rating

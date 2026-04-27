@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from sqlmodel import SQLModel
 
 
@@ -42,6 +42,12 @@ class ShopReviewUpdate(SQLModel):
         if v is not None and len(v) > 500:
             raise ValueError("Comment must not exceed 500 characters")
         return v
+
+    @model_validator(mode="after")
+    def require_at_least_one_field(self) -> "ShopReviewUpdate":
+        if self.rating is None and self.comment is None:
+            raise ValueError("At least one of rating or comment must be provided")
+        return self
 
 
 class ShopReviewRead(SQLModel):
