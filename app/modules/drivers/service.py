@@ -122,7 +122,7 @@ async def edit_driver(session: AsyncSession, driver_id: UUID, data: DriverWrite)
         setattr(driver, key, value)
 
 
-    for key, value in data.user.model_dump(exclude_unset=True).items():
+    for key, value in data.user.model_dump(exclude_unset=True, exclude={"password"}).items():
         setattr(driver.user, key, value)
 
 
@@ -311,6 +311,10 @@ async def create_assignment_api(session: AsyncSession, data: DriverAssignmentCre
         order_id=data.order_id,
         role=data.role,
         driver_id=data.driver_id,
+    )
+    await connection_manager.send_json(
+        get_assignment_room(data.driver_id),
+        {"event": "driver_assignment_created", "assignment_id": str(assignment.id)},
     )
     return assignment
 
@@ -546,6 +550,10 @@ async def update_assignment_status(
     await session.commit()
 
     assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
+    await connection_manager.send_json(
+        get_assignment_room(assignment.driver_id),
+        {"event": "assignment_status_updated", "status": data.status.value},
+    )
     return assignment
 
 

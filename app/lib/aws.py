@@ -138,8 +138,11 @@ def send_sqs_message(
     deduplication_id: str | None = None,
 ) -> dict:
     client = get_sqs_client()
-    
-    resolved_queue_url = get_or_create_queue(client, queue_name=queue_name)
+
+    if queue_name is not None:
+        resolved_queue_url = get_or_create_queue(client, queue_name=queue_name)
+    else:
+        resolved_queue_url = get_sqs_queue_url()
 
     payload: dict = {
         "QueueUrl": resolved_queue_url,

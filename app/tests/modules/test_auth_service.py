@@ -116,7 +116,7 @@ def test_signup_rejects_existing_user() -> None:
 def test_logout_clears_customer_msg_token() -> None:
     user = build_user()
     user.msg_token = "firebase-token"
-    session = FakeAsyncSession(get_results=[user])
+    session = FakeAsyncSession(get_results=[user], exec_results=[[]])
 
     response = run_async(
         auth_service.logout(
@@ -127,7 +127,7 @@ def test_logout_clears_customer_msg_token() -> None:
 
     assert response == {"message": "Logout successful"}
     assert user.msg_token is None
-    assert session.commits == 1
+    assert session.commits == 2
 
 
 def test_logout_sets_driver_offline_and_clears_token() -> None:
@@ -144,7 +144,7 @@ def test_logout_sets_driver_offline_and_clears_token() -> None:
         license_number=None,
         vehicle_color="Red",
     )
-    session = FakeAsyncSession(get_results=[user], exec_results=[driver])
+    session = FakeAsyncSession(get_results=[user], exec_results=[[], driver])
 
     response = run_async(
         auth_service.logout(
@@ -156,4 +156,4 @@ def test_logout_sets_driver_offline_and_clears_token() -> None:
     assert response == {"message": "Logout successful"}
     assert user.msg_token is None
     assert driver.driver_status == DriverStatus.OFFLINE
-    assert session.commits == 1
+    assert session.commits == 2

@@ -4,6 +4,7 @@ import logging
 
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
+from fastapi import HTTPException
 from app.exceptions.http import  create_400, create_404, create_500
 from app.exceptions.user import UserExistingError
 from app.modules.auth.schema import LoginRequest,LoginResponse, LogoutRequest, SignupRequest
@@ -51,9 +52,11 @@ async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
       response=LoginResponse(token=token, **user_data)
   
       return response
-    except NoResultFound: 
+    except HTTPException:
+       raise
+    except NoResultFound:
        raise create_404("Login not found")
-    except Exception as e: 
+    except Exception as e:
        print(f"Unknow error {e}")
        raise create_500("Unknown error occurred")
 

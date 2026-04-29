@@ -67,7 +67,7 @@ def test_delete_user_returns_false_when_missing() -> None:
 
 def test_update_user_msg_token_updates_user() -> None:
     user = build_user()
-    session = FakeAsyncSession(get_results=[user])
+    session = FakeAsyncSession(exec_results=[user])
 
     updated = run_async(
         user_service.update_user_msg_token(

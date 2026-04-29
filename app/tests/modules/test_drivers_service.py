@@ -105,7 +105,7 @@ def test_create_assignment_api_creates_assignment_for_online_driver(monkeypatch:
 def test_update_assignment_status_accepts_and_sets_driver_busy(monkeypatch: pytest.MonkeyPatch) -> None:
     driver = build_driver()
     assignment = build_assignment(driver_id=driver.id)
-    session = FakeAsyncSession(exec_results=[assignment], get_results=[driver])
+    session = FakeAsyncSession(exec_results=[assignment, assignment], get_results=[driver])
     websocket_events: list[dict] = []
 
     async def fake_send_json(_room: str, payload: dict) -> None:
@@ -130,7 +130,7 @@ def test_update_assignment_status_accepts_and_sets_driver_busy(monkeypatch: pyte
 def test_update_assignment_status_picked_up_keeps_driver_busy(monkeypatch: pytest.MonkeyPatch) -> None:
     driver = build_driver()
     assignment = build_assignment(driver_id=driver.id)
-    session = FakeAsyncSession(exec_results=[assignment], get_results=[driver])
+    session = FakeAsyncSession(exec_results=[assignment, assignment], get_results=[driver])
 
     async def fake_send_json(_room: str, _payload: dict) -> None:
         return None
@@ -153,7 +153,7 @@ def test_update_assignment_status_delivered_sets_driver_online(monkeypatch: pyte
     driver = build_driver()
     driver.driver_status = DriverStatus.BUSY
     assignment = build_assignment(driver_id=driver.id)
-    session = FakeAsyncSession(exec_results=[assignment], get_results=[driver])
+    session = FakeAsyncSession(exec_results=[assignment, assignment], get_results=[driver])
 
     async def fake_send_json(_room: str, _payload: dict) -> None:
         return None

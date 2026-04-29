@@ -67,7 +67,7 @@ def test_remove_business_marks_pending_as_deactivated() -> None:
     business = build_business(owner_id)
     session = FakeAsyncSession(exec_results=[business])
 
-    run_async(business_service.remove_business(business.id, owner_id, session))
+    run_async(business_service.remove_business(business.id, str(owner_id), session))
 
     assert business.status == ShopStatus.DEACTIVATED
     assert session.commits == 1
@@ -78,7 +78,7 @@ def test_remove_business_rejects_non_owner() -> None:
     session = FakeAsyncSession(exec_results=[business])
 
     with pytest.raises(HTTPException) as exc:
-        run_async(business_service.remove_business(business.id, uuid4(), session))
+        run_async(business_service.remove_business(business.id, str(uuid4()), session))
 
     assert exc.value.status_code == 401
 

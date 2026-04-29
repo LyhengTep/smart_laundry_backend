@@ -257,17 +257,20 @@ async def create_order(session: AsyncSession, data: OrderCreate) -> OrderRead:
         business_services_by_id=business_services_by_id,
     )
 
-    # Create order object 
-    order = create_order_factory(data,subtotal,total=calculate_order_total(
+    order = create_order_factory(data, subtotal, total=calculate_order_total(
             [item.sub_total for item in order_items],
             discount=data.discount,
             delivery_fee=0,
         ),
         order_item=order_items
-        )
+    )
 
-    # Create Order object and fetch order with items
-    order = await order_repo.save(order=order,session=session)
+    session.add(order)
+    payment = build_initial_order_payment(order, data)
+    session.add(payment)
+    await session.commit()
+    await session.refresh(order)
+
     order_with_items = await order_repo.get_by_id(order.id, session)
     await broadcast_order_event("order_created", order_with_items)
     return order_with_items
@@ -379,7 +382,7 @@ async def update_order_status(
     await session.commit()
 
     updated_order = await get_order_by_id(order_id=order_id, session=session)
-    # await broadcast_order_event("order_status_updated", updated_order)
+    await broadcast_order_event("order_status_updated", updated_order)
     return updated_order
 
 async def update_order_pricing(

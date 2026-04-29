@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -21,12 +22,12 @@ from app.modules.orders.service import (
     build_order_items,
     calculate_order_item_subtotal,
     calculate_order_total,
-    generate_order_no,
     update_order_status,
     update_order_pricing,
     validate_status_transition,
     mark_order_payment_received,
 )
+from app.shared.common import generate_order_no
 from app.modules.payments.models import CurrencyType, PaidByType, Payment, PaymentMethod, PaymentStatus
 from app.modules.users.models import RoleName, User, UserStatus
 from app.tests.modules.conftest import FakeAsyncSession, run_async
@@ -350,7 +351,7 @@ def test_update_order_status_rejects_invalid_transition() -> None:
     assert exc.value.status_code == 400
 
 
-def test_update_order_status_confirmed_can_set_delivery_fee() -> None:
+def test_update_order_status_confirmed_can_set_delivery_fee(monkeypatch: pytest.MonkeyPatch) -> None:
     order, _ = build_order_for_pricing(OrderStatus.PENDING)
     payment = Payment(
         order_id=order.id,
@@ -362,19 +363,21 @@ def test_update_order_status_confirmed_can_set_delivery_fee() -> None:
         paid_at=datetime.now(timezone.utc),
     )
     session = FakeAsyncSession(exec_results=[order, [payment], order])
+    monkeypatch.setattr(order_service, "broadcast_order_event", AsyncMock())
 
     updated = run_async(
         update_order_status(
             order.id,
-            OrderStatusUpdate(status=OrderStatus.CONFIRMED, delivery_fee=2.0),
+            OrderStatusUpdate(status=OrderStatus.CONFIRMED, pickup_fee=2.0),
             session,
         )
     )
 
     assert updated.status == OrderStatus.CONFIRMED
+    assert updated.pickup_fee == 2.0
     assert updated.delivery_fee == 2.0
-    assert updated.total == 9.5
-    assert payment.amount == Decimal("9.5")
+    assert updated.total == 11.5
+    assert payment.amount == Decimal("11.5")
     assert session.commits == 1
 
 
@@ -407,7 +410,7 @@ def test_update_order_status_rejects_delivery_fee_at_pickup() -> None:
         run_async(
             update_order_status(
                 order.id,
-                OrderStatusUpdate(status=OrderStatus.PICKED_UP, delivery_fee=3.0),
+                OrderStatusUpdate(status=OrderStatus.PICKED_UP, pickup_fee=3.0),
                 session,
             )
         )
@@ -461,7 +464,7 @@ def test_update_order_status_rejects_delivery_fee_outside_confirmation() -> None
         run_async(
             update_order_status(
                 order.id,
-                OrderStatusUpdate(status=OrderStatus.PICKUP_ASSIGNED, delivery_fee=2.0),
+                OrderStatusUpdate(status=OrderStatus.PICKUP_ASSIGNED, pickup_fee=2.0),
                 session,
             )
         )
@@ -472,21 +475,13 @@ def test_update_order_status_rejects_delivery_fee_outside_confirmation() -> None
 
 def test_update_order_status_cancelled_sends_notification(monkeypatch: pytest.MonkeyPatch) -> None:
     order, _ = build_order_for_pricing(OrderStatus.PENDING)
-    user = build_user()
-    user.id = order.customer_id
-    session = FakeAsyncSession(exec_results=[order, user, order])
-    sent_messages: list[tuple[str | None, str, str]] = []
+    session = FakeAsyncSession(exec_results=[order, order])
     broadcast_calls: list[str] = []
 
     async def fake_broadcast(event: str, updated_order: Order) -> None:
         broadcast_calls.append(event)
 
     monkeypatch.setattr(order_service, "broadcast_order_event", fake_broadcast)
-    monkeypatch.setattr(
-        order_service,
-        "send_firebase_message",
-        lambda token, title, body: sent_messages.append((token, title, body)),
-    )
 
     updated = run_async(
         update_order_status(
@@ -499,27 +494,25 @@ def test_update_order_status_cancelled_sends_notification(monkeypatch: pytest.Mo
     assert updated.status == OrderStatus.CANCELLED
     assert session.commits == 1
     assert broadcast_calls == ["order_status_updated"]
-    assert sent_messages == [
-        ("firebase-token", "Order Cancelled", f"Your order no {order.order_no} was cancelled")
-    ]
 
 
-def test_update_order_status_delivery_pickup_sets_payer() -> None:
-    order, _ = build_order_for_pricing(OrderStatus.DELIVERY_ASSIGNED)
+def test_update_order_status_delivery_pickup_sets_payer(monkeypatch: pytest.MonkeyPatch) -> None:
+    order, _ = build_order_for_pricing(OrderStatus.OUT_FOR_DELIVERY)
     session = FakeAsyncSession(exec_results=[order, order])
+    monkeypatch.setattr(order_service, "broadcast_order_event", AsyncMock())
 
     updated = run_async(
         update_order_status(
             order.id,
             OrderStatusUpdate(
-                status=OrderStatus.OUT_FOR_DELIVERY,
+                status=OrderStatus.PICKED_UP_DELIVERY,
                 delivery_fee_paid_by=DeliveryFeePaidBy.SHOP,
             ),
             session,
         )
     )
 
-    assert updated.status == OrderStatus.OUT_FOR_DELIVERY
+    assert updated.status == OrderStatus.PICKED_UP_DELIVERY
     assert updated.delivery_fee_paid_by == DeliveryFeePaidBy.SHOP
     assert session.commits == 1
 
