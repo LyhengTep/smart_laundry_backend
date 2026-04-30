@@ -123,6 +123,67 @@ def test_send_sqs_message_supports_fifo_fields(monkeypatch: pytest.MonkeyPatch) 
     assert captured["MessageDeduplicationId"] == "dedupe-1"
 
 
+def test_sanitize_filename_replaces_spaces() -> None:
+    assert aws.sanitize_filename("my file name.png") == "my_file_name.png"
+
+
+def test_sanitize_filename_strips_directory_traversal() -> None:
+    assert aws.sanitize_filename("../../etc/passwd") == "passwd"
+
+
+def test_send_sqs_message_with_queue_name_calls_get_or_create(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    created_queues: list[str] = []
+
+    class FakeSQSClient:
+        class exceptions:
+            class QueueDoesNotExist(Exception):
+                pass
+
+        def get_queue_url(self, QueueName):
+            return {"QueueUrl": f"https://sqs.example.com/{QueueName}"}
+
+        def send_message(self, **kwargs):
+            captured.update(kwargs)
+            return {"MessageId": "named-1"}
+
+    monkeypatch.setattr(aws, "get_sqs_client", lambda: FakeSQSClient())
+
+    response = aws.send_sqs_message('{"event":"test"}', queue_name="my-queue")
+
+    assert response == {"MessageId": "named-1"}
+    assert captured["QueueUrl"] == "https://sqs.example.com/my-queue"
+
+
+def test_get_or_create_queue_returns_existing_queue_url() -> None:
+    class FakeSQSClient:
+        class exceptions:
+            class QueueDoesNotExist(Exception):
+                pass
+
+        def get_queue_url(self, QueueName):
+            return {"QueueUrl": f"https://sqs.example.com/{QueueName}"}
+
+    url = aws.get_or_create_queue(FakeSQSClient(), "existing-queue")
+    assert url == "https://sqs.example.com/existing-queue"
+
+
+def test_get_or_create_queue_creates_queue_when_missing() -> None:
+    class FakeSQSClient:
+        class exceptions:
+            class QueueDoesNotExist(Exception):
+                pass
+
+        def get_queue_url(self, QueueName):
+            raise self.exceptions.QueueDoesNotExist()
+
+        def create_queue(self, QueueName):
+            return {"QueueUrl": f"https://sqs.example.com/{QueueName}"}
+
+    url = aws.get_or_create_queue(FakeSQSClient(), "new-queue")
+    assert url == "https://sqs.example.com/new-queue"
+
+
 def test_delete_sqs_message_uses_receipt_handle(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 
