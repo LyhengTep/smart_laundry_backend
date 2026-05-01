@@ -45,8 +45,10 @@ async def _batch_review_summaries(
     }
 
 async def list_my_businesses(
-    owner_id: uuid.UUID, session: AsyncSession, page: int, size: int
+    owner_id: uuid.UUID | str, session: AsyncSession, page: int, size: int
 ) -> Page[BusinessRead]:
+    if isinstance(owner_id, str):
+        owner_id = UUID(owner_id)
     offset = (page - 1) * size
     statement = (
         select(LaundryBusiness)
@@ -118,8 +120,6 @@ async def list_one_business(id: UUID, session: AsyncSession) -> SingleBusinessRe
     statement = select(LaundryBusiness).where(LaundryBusiness.id == id).options(selectinload(LaundryBusiness.services).selectinload(BusinessService.laundry_service))
     result = await session.exec(statement)
     business = result.first()
-
-    print(f"Business found: {business.services}")
     if not business:
         raise create_404("Business not found")
 
@@ -182,7 +182,6 @@ async def edit_business(id: UUID, data: BusinessUpdate, current_user: uuid.UUID,
     result = await session.exec(statement)
     business= result.first()
 
-    print(f"Business found: {business.services}")
     if not business:
         raise create_404("Business not found")
 
@@ -191,13 +190,14 @@ async def edit_business(id: UUID, data: BusinessUpdate, current_user: uuid.UUID,
     read.review_summary = summaries.get(business.id)
     return read
 
-async def create_business( data: BusinessWrite,current_user: uuid.UUID,session: AsyncSession) -> BusinessRead:
-     user_result= await session.exec(select(User).where(User.id==current_user,User.status==UserStatus.ACTIVE,User.role=="MERCHANT"))
+async def create_business( data: BusinessWrite,current_user: uuid.UUID | str,session: AsyncSession) -> BusinessRead:
+     owner_uuid = UUID(current_user) if isinstance(current_user, str) else current_user
+     user_result= await session.exec(select(User).where(User.id==owner_uuid,User.status==UserStatus.ACTIVE,User.role=="MERCHANT"))
      user = user_result.first()
      if not user:
          raise create_404("User not found")
      business = LaundryBusiness(**data.model_dump(exclude_unset=True))
-     business.owner_id=current_user
+     business.owner_id=owner_uuid
      business.business_license_number="1234567890"
      session.add(business)
      await session.commit()
