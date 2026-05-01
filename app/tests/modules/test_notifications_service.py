@@ -77,28 +77,43 @@ def test_mark_notification_as_read_updates_flags() -> None:
 def test_list_notifications_filters_by_user_id() -> None:
     target_uid = uuid4()
     n1 = build_notification(user_id=target_uid)
-    n2 = build_notification(user_id=uuid4())
-    session = FakeAsyncSession(exec_results=[[n1]])
+    # exec_results: [0] count query, [1] items query
+    session = FakeAsyncSession(exec_results=[1, [n1]])
 
-    results = run_async(
+    page = run_async(
         notification_service.list_notifications(session, user_id=target_uid)
     )
 
-    assert len(results) == 1
-    assert results[0].user_id == target_uid
+    assert page.total == 1
+    assert len(page.items) == 1
+    assert page.items[0].user_id == target_uid
+
+
+def test_list_notifications_returns_pagination_metadata() -> None:
+    notifications = [build_notification() for _ in range(3)]
+    session = FakeAsyncSession(exec_results=[3, notifications[:2]])
+
+    page = run_async(
+        notification_service.list_notifications(session, page=1, size=2)
+    )
+
+    assert page.total == 3
+    assert page.pages == 2
+    assert page.size == 2
+    assert len(page.items) == 2
 
 
 def test_list_my_notifications_uses_current_user_id() -> None:
     uid = uuid4()
     notification = build_notification(user_id=uid)
-    session = FakeAsyncSession(exec_results=[[notification]])
+    session = FakeAsyncSession(exec_results=[1, [notification]])
 
-    results = run_async(
+    page = run_async(
         notification_service.list_my_notifications(str(uid), session)
     )
 
-    assert len(results) == 1
-    assert results[0].user_id == uid
+    assert page.total == 1
+    assert page.items[0].user_id == uid
 
 
 def test_send_push_notification_returns_message_id(monkeypatch: pytest.MonkeyPatch) -> None:

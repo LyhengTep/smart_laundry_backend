@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.reponse_model import Page
 from app.db.engine import get_session
 from app.lib.security import get_current_user
 from app.modules.notifications import service as svc
@@ -18,33 +19,41 @@ from app.modules.notifications.schema import (
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
-@router.get("/mine", response_model=list[NotificationRead])
+@router.get("/mine", response_model=Page[NotificationRead])
 async def list_my_notifications(
     is_read: bool | None = Query(default=None),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
     current_user: str = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[NotificationRead]:
+) -> Page[NotificationRead]:
     return await svc.list_my_notifications(
         current_user_id=current_user,
         session=session,
         is_read=is_read,
+        page=page,
+        size=size,
     )
 
 
-@router.get("/", response_model=list[NotificationRead])
+@router.get("/", response_model=Page[NotificationRead])
 async def list_notifications(
     user_id: UUID | None = Query(default=None),
     is_read: bool | None = Query(default=None),
     status: NotificationStatus | None = Query(default=None),
     reference_id: UUID | None = Query(default=None),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
-) -> list[NotificationRead]:
+) -> Page[NotificationRead]:
     return await svc.list_notifications(
         session=session,
         user_id=user_id,
         is_read=is_read,
         status=status,
         reference_id=reference_id,
+        page=page,
+        size=size,
     )
 
 

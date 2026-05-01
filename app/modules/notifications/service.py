@@ -1,8 +1,10 @@
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.reponse_model import Page
 from app.core.firebase import send_firebase_message, send_firebase_multicast
 from app.exceptions.http import create_404
 from app.modules.notifications.models import Notification, NotificationStatus
@@ -22,29 +24,52 @@ async def list_notifications(
     is_read: bool | None = None,
     status: NotificationStatus | None = None,
     reference_id: UUID | None = None,
-) -> list[NotificationRead]:
-    statement = select(Notification).order_by(Notification.created_at.desc())
+    page: int = 1,
+    size: int = 20,
+) -> Page[NotificationRead]:
+    offset = (page - 1) * size
+
+    statement = select(Notification).order_by(Notification.created_at.desc()).offset(offset).limit(size)
+    count_statement = select(func.count(Notification.id))
+
     if user_id is not None:
         statement = statement.where(Notification.user_id == user_id)
+        count_statement = count_statement.where(Notification.user_id == user_id)
     if is_read is not None:
         statement = statement.where(Notification.is_read == is_read)
+        count_statement = count_statement.where(Notification.is_read == is_read)
     if status is not None:
         statement = statement.where(Notification.status == status)
+        count_statement = count_statement.where(Notification.status == status)
     if reference_id is not None:
         statement = statement.where(Notification.reference_id == reference_id)
-    result = await session.exec(statement)
-    return result.all()
+        count_statement = count_statement.where(Notification.reference_id == reference_id)
+
+    total = (await session.exec(count_statement)).one()
+    items = (await session.exec(statement)).all()
+
+    return Page[NotificationRead](
+        items=items,
+        total=total,
+        page=page,
+        size=size,
+        pages=(total + size - 1) // size,
+    )
 
 
 async def list_my_notifications(
     current_user_id: str,
     session: AsyncSession,
     is_read: bool | None = None,
-) -> list[NotificationRead]:
+    page: int = 1,
+    size: int = 20,
+) -> Page[NotificationRead]:
     return await list_notifications(
         session=session,
         user_id=UUID(current_user_id),
         is_read=is_read,
+        page=page,
+        size=size,
     )
 
 
