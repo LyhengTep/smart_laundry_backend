@@ -19,9 +19,10 @@ from app.modules.notifications.schema import (
 from app.tests.modules.conftest import FakeAsyncSession, run_async
 
 
-def build_notification() -> Notification:
+def build_notification(user_id=None) -> Notification:
     return Notification(
         id=uuid4(),
+        user_id=user_id or uuid4(),
         type=NotificationType.ORDER_STATUS,
         title="Order created",
         message="A new order was created",
@@ -38,6 +39,7 @@ def build_notification() -> Notification:
 def test_create_notification_persists_notification() -> None:
     session = FakeAsyncSession()
     data = NotificationCreate(
+        user_id=uuid4(),
         type=NotificationType.SYSTEM,
         title="General",
         message="System notification",
@@ -70,6 +72,33 @@ def test_mark_notification_as_read_updates_flags() -> None:
     assert updated.is_read is True
     assert updated.status == NotificationStatus.READ
     assert updated.read_at is not None
+
+
+def test_list_notifications_filters_by_user_id() -> None:
+    target_uid = uuid4()
+    n1 = build_notification(user_id=target_uid)
+    n2 = build_notification(user_id=uuid4())
+    session = FakeAsyncSession(exec_results=[[n1]])
+
+    results = run_async(
+        notification_service.list_notifications(session, user_id=target_uid)
+    )
+
+    assert len(results) == 1
+    assert results[0].user_id == target_uid
+
+
+def test_list_my_notifications_uses_current_user_id() -> None:
+    uid = uuid4()
+    notification = build_notification(user_id=uid)
+    session = FakeAsyncSession(exec_results=[[notification]])
+
+    results = run_async(
+        notification_service.list_my_notifications(str(uid), session)
+    )
+
+    assert len(results) == 1
+    assert results[0].user_id == uid
 
 
 def test_send_push_notification_returns_message_id(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -18,11 +18,14 @@ from app.shared.common import utc_now
 
 async def list_notifications(
     session: AsyncSession,
+    user_id: UUID | None = None,
     is_read: bool | None = None,
     status: NotificationStatus | None = None,
     reference_id: UUID | None = None,
 ) -> list[NotificationRead]:
     statement = select(Notification).order_by(Notification.created_at.desc())
+    if user_id is not None:
+        statement = statement.where(Notification.user_id == user_id)
     if is_read is not None:
         statement = statement.where(Notification.is_read == is_read)
     if status is not None:
@@ -31,6 +34,18 @@ async def list_notifications(
         statement = statement.where(Notification.reference_id == reference_id)
     result = await session.exec(statement)
     return result.all()
+
+
+async def list_my_notifications(
+    current_user_id: str,
+    session: AsyncSession,
+    is_read: bool | None = None,
+) -> list[NotificationRead]:
+    return await list_notifications(
+        session=session,
+        user_id=UUID(current_user_id),
+        is_read=is_read,
+    )
 
 
 async def get_notification(notification_id: UUID, session: AsyncSession) -> NotificationRead:

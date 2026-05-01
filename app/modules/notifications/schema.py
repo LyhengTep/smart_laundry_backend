@@ -11,6 +11,7 @@ from app.modules.notifications.models import (
 
 
 class NotificationCreate(SQLModel):
+    user_id: UUID
     type: NotificationType
     title: str
     message: str
@@ -22,6 +23,7 @@ class NotificationCreate(SQLModel):
 
 class NotificationRead(SQLModel):
     id: UUID
+    user_id: UUID
     type: NotificationType
     title: str
     message: str

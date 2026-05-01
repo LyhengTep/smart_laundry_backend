@@ -19,6 +19,7 @@ from app.modules.device_tokens.models import DeviceToken
 from app.modules.realtime.manager import connection_manager
 from app.modules.business_services.model import BusinessService
 from app.modules.businesses.models import LaundryBusiness
+from app.modules.notifications.models import Notification, NotificationChannel, NotificationStatus, NotificationType
 from app.modules.orders.models import Order, OrderItem, OrderStatus
 from app.modules.orders.schema import (
     OrderCreate,
@@ -275,28 +276,44 @@ async def create_order(session: AsyncSession, data: OrderCreate) -> OrderRead:
     await broadcast_order_event("order_created", order_with_items)
     return order_with_items
 
-async def notification_processor(order:Order,current_user_id:UUID,session:AsyncSession): 
+async def notification_processor(order: Order, current_user_id: UUID, session: AsyncSession):
     try:
+        customer_notification_types = [OrderStatus.CANCELLED, OrderStatus.DELIVERED_TO_SHOP]
+        if order.status not in customer_notification_types:
+            return
 
-        customer_notification_types=[OrderStatus.CANCELLED,OrderStatus.DELIVERED_TO_SHOP]
-        logger.info(f"checking status if work correctly {order.status} {order.status in customer_notification_types}")
-        # Case 1: Send Notification to customer when shop reject their order
-        if order.status in customer_notification_types:
-            
-            statement= select(DeviceToken).where(DeviceToken.user_id==order.customer_id)
-            res= await session.exec(statement)
-            device= res.first()
+        title = get_notification_title(order.status)
+        body = get_notification_template(order.status, order_no=order.order_no)
 
-            logger.info(f"Call token and user check for customer {type(order.customer_id)} current_user: {type(current_user_id)} conditional check {order.customer_id!=current_user_id}")
-            if device is not None and str(order.customer_id)!=current_user_id:
-                send_firebase_message(
-                    token=device.token,
-                    title=get_notification_title(order.status),
-                    body=get_notification_template(order.status,order_no=order.order_no)
-                )
+        statement = select(DeviceToken).where(DeviceToken.user_id == order.customer_id)
+        res = await session.exec(statement)
+        device = res.first()
 
+        push_status = NotificationStatus.SENT
+        channel = NotificationChannel.IN_APP
 
-    except Exception as e: 
+        if device is not None and str(order.customer_id) != str(current_user_id):
+            channel = NotificationChannel.PUSH
+            try:
+                send_firebase_message(token=device.token, title=title, body=body)
+            except Exception as firebase_err:
+                logger.warning(f"Firebase push failed for order {order.id}: {firebase_err}")
+                push_status = NotificationStatus.FAILED
+
+        notification = Notification(
+            user_id=order.customer_id,
+            type=NotificationType.ORDER_STATUS,
+            title=title,
+            message=body,
+            reference_id=order.id,
+            reference_type="ORDER",
+            channel=channel,
+            status=push_status,
+        )
+        session.add(notification)
+        await session.commit()
+
+    except Exception as e:
         logger.error(f"Unknown error in notification processor {e}")
 
 async def update_order_status_api(order_id: UUID,

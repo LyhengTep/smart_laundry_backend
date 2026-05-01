@@ -32,6 +32,7 @@ class Notification(SQLModel, table=True):
     __tablename__ = "notifications"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    user_id: UUID = Field(foreign_key="users.id", nullable=False, index=True)
     type: NotificationType = Field(
         sa_column=Column(SAEnum(NotificationType, name="notification_type"), nullable=False, index=True),
     )

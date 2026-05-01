@@ -16,12 +16,14 @@ from app.modules.orders.schema import (
     OrderPricingUpdate,
     OrderStatusUpdate,
 )
+from app.modules.notifications.models import Notification, NotificationChannel, NotificationStatus
 from app.modules.orders import service as order_service
 from app.modules.orders.service import (
     build_order_event_payload,
     build_order_items,
     calculate_order_item_subtotal,
     calculate_order_total,
+    notification_processor,
     update_order_status,
     update_order_pricing,
     validate_status_transition,
@@ -612,3 +614,68 @@ def test_update_order_pricing_updates_pending_customer_payment_amount() -> None:
     run_async(update_order_pricing(order.id, data, session))
 
     assert payment.amount == Decimal("11.0")
+
+
+# ---------------------------------------------------------------------------
+# notification_processor
+# ---------------------------------------------------------------------------
+
+def _build_order_with_status(status: OrderStatus) -> Order:
+    order, _ = build_order_for_pricing(status)
+    return order
+
+
+def test_notification_processor_saves_notification_on_cancelled(monkeypatch: pytest.MonkeyPatch) -> None:
+    order = _build_order_with_status(OrderStatus.CANCELLED)
+    from app.modules.device_tokens.models import DeviceToken
+    device = DeviceToken(id=1, user_id=order.customer_id, token="fcm-token")
+    session = FakeAsyncSession(exec_results=[device])
+
+    monkeypatch.setattr(order_service, "send_firebase_message", lambda **_: "msg-id")
+
+    run_async(notification_processor(order=order, current_user_id=uuid4(), session=session))
+
+    saved = [obj for obj in session.added if isinstance(obj, Notification)]
+    assert len(saved) == 1
+    assert saved[0].user_id == order.customer_id
+    assert saved[0].channel == NotificationChannel.PUSH
+    assert saved[0].status == NotificationStatus.SENT
+    assert saved[0].reference_id == order.id
+    assert session.commits == 1
+
+
+def test_notification_processor_saves_in_app_when_no_device_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    order = _build_order_with_status(OrderStatus.CANCELLED)
+    session = FakeAsyncSession(exec_results=[None])  # no device token
+
+    run_async(notification_processor(order=order, current_user_id=uuid4(), session=session))
+
+    saved = [obj for obj in session.added if isinstance(obj, Notification)]
+    assert len(saved) == 1
+    assert saved[0].channel == NotificationChannel.IN_APP
+    assert saved[0].status == NotificationStatus.SENT
+
+
+def test_notification_processor_marks_failed_when_firebase_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    order = _build_order_with_status(OrderStatus.CANCELLED)
+    from app.modules.device_tokens.models import DeviceToken
+    device = DeviceToken(id=1, user_id=order.customer_id, token="bad-token")
+    session = FakeAsyncSession(exec_results=[device])
+
+    monkeypatch.setattr(order_service, "send_firebase_message", lambda **_: (_ for _ in ()).throw(RuntimeError("Firebase down")))
+
+    run_async(notification_processor(order=order, current_user_id=uuid4(), session=session))
+
+    saved = [obj for obj in session.added if isinstance(obj, Notification)]
+    assert len(saved) == 1
+    assert saved[0].status == NotificationStatus.FAILED
+
+
+def test_notification_processor_skips_non_notifiable_status() -> None:
+    order = _build_order_with_status(OrderStatus.PROCESSING)
+    session = FakeAsyncSession()
+
+    run_async(notification_processor(order=order, current_user_id=uuid4(), session=session))
+
+    assert session.commits == 0
+    assert session.added == []
