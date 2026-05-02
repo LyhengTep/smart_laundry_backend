@@ -27,6 +27,7 @@ from app.modules.orders.schema import (
     OrderPricingUpdate,
     OrderRead,
     OrderStatusUpdate,
+    OrderTrackingRead,
 )
 
 import app.modules.orders.repository as order_repo
@@ -219,6 +220,15 @@ async def list_orders(
         size=size,
         pages=(total + size - 1) // size,
     )
+
+async def search_order_by_order_no(order_no: str, session: AsyncSession) -> OrderTrackingRead:
+    statement = select(Order).where(Order.order_no == order_no).options(selectinload(Order.items))
+    result = await session.exec(statement)
+    order = result.first()
+    if order is None:
+        raise create_404("Order not found")
+    return order
+
 
 async def get_order_by_id(order_id: UUID, session: AsyncSession) -> OrderRead:
     statement = select(Order).where(Order.id == order_id).options(selectinload(Order.items))

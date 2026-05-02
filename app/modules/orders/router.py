@@ -8,7 +8,8 @@ from app.db.engine import get_session
 from app.lib.security import get_current_user
 from app.modules.orders import service as svc
 from app.modules.orders.models import OrderStatus
-from app.modules.orders.schema import OrderCreate, OrderPricingUpdate, OrderRead, OrderStatusUpdate
+from app.modules.orders.schema import OrderCreate, OrderPricingUpdate, OrderRead, OrderStatusUpdate, OrderTrackingRead
+
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -32,6 +33,14 @@ async def list_orders(
         page=page,
         size=size, 
     )
+
+
+@router.get("/search", response_model=OrderTrackingRead)
+async def search_order(
+    order_no: str = Query(..., description="Exact order number"),
+    session: AsyncSession = Depends(get_session),
+) -> OrderTrackingRead:
+    return await svc.search_order_by_order_no(order_no=order_no, session=session)
 
 
 @router.get("/{order_id}", response_model=OrderRead)

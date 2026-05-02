@@ -80,6 +80,17 @@ class OrderRead(SQLModel):
     items: list[OrderItemRead]
     model_config = {"from_attributes": True}
 
+class OrderTrackingRead(SQLModel):
+    order_no: str
+    status: OrderStatus
+    pickup_address: str
+    delivery_address: str
+    placed_at: datetime
+    updated_at: datetime
+    items: list[OrderItemRead]
+    model_config = {"from_attributes": True}
+
+
 class OrderReadWithCustomer(OrderRead):
     customer: UserReadBasicRead | None
     business: BusinessRead | None

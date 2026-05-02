@@ -24,6 +24,7 @@ from app.modules.orders.service import (
     calculate_order_item_subtotal,
     calculate_order_total,
     notification_processor,
+    search_order_by_order_no,
     update_order_status,
     update_order_pricing,
     validate_status_transition,
@@ -679,3 +680,22 @@ def test_notification_processor_skips_non_notifiable_status() -> None:
 
     assert session.commits == 0
     assert session.added == []
+
+
+def test_search_order_by_order_no_returns_order() -> None:
+    order = _build_order_with_status(OrderStatus.PENDING)
+    session = FakeAsyncSession(exec_results=[order])
+
+    result = run_async(search_order_by_order_no(order_no=order.order_no, session=session))
+
+    assert result.order_no == order.order_no
+    assert result.status == OrderStatus.PENDING
+
+
+def test_search_order_by_order_no_raises_404_when_missing() -> None:
+    session = FakeAsyncSession(exec_results=[None])
+
+    with pytest.raises(HTTPException) as exc:
+        run_async(search_order_by_order_no(order_no="ORD-NOTEXIST", session=session))
+
+    assert exc.value.status_code == 404
