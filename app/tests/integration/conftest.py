@@ -90,8 +90,11 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 async def client(db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[AsyncClient, None]:
     import app.lib.aws as aws_module
     import app.core.firebase as firebase_module
+    import app.modules.orders.service as orders_service
 
-    monkeypatch.setattr(aws_module, "send_sqs_message", lambda *a, **kw: {"MessageId": "test"})
+    _noop_sqs = lambda *a, **kw: {"MessageId": "test"}
+    monkeypatch.setattr(aws_module, "send_sqs_message", _noop_sqs)
+    monkeypatch.setattr(orders_service, "send_sqs_message", _noop_sqs)
     monkeypatch.setattr(firebase_module, "send_firebase_message", lambda *a, **kw: None)
 
     from app.db.engine import get_session
