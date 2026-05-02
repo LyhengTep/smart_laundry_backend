@@ -36,6 +36,7 @@ class UserWrite(SQLModel):
 
 
 class UserEdit(UserWrite):
+    password: str | None = None  # optional — omit to keep existing password
     status: UserStatus
 
 
