@@ -23,6 +23,15 @@ def _get_engine():
     return _engine
 
 
+class _EngineProxy:
+    """Forwards attribute access to the lazily-created engine instance."""
+    def __getattr__(self, name):
+        return getattr(_get_engine(), name)
+
+
+engine = _EngineProxy()
+
+
 def _get_session_factory():
     global _session_factory
     if _session_factory is None:

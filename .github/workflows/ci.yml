@@ -30,6 +30,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
       AWS_REGION: ap-southeast-1
+    environment: UAT
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
