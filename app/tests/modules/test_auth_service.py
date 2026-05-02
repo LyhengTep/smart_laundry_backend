@@ -66,6 +66,24 @@ def test_login_does_not_commit_for_customer(monkeypatch: pytest.MonkeyPatch) -> 
     assert session.commits == 0
 
 
+def test_login_raises_400_when_user_inactive(monkeypatch: pytest.MonkeyPatch) -> None:
+    user = build_user()
+    user.status = UserStatus.INACTIVE
+    session = FakeAsyncSession(exec_results=[user])
+    monkeypatch.setattr(auth_service, "verify_password", lambda raw, hashed: True)
+
+    with pytest.raises(Exception) as exc:
+        run_async(
+            auth_service.login(
+                LoginRequest(login=user.user_name, password="secret", role=RoleName.CUSTOMER),
+                session,
+            )
+        )
+
+    assert getattr(exc.value, "status_code", None) == 400
+    assert "inactive" in exc.value.detail.lower()
+
+
 def test_login_raises_not_found_for_invalid_password(monkeypatch: pytest.MonkeyPatch) -> None:
     user = build_user()
     session = FakeAsyncSession(exec_results=[user])

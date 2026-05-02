@@ -56,6 +56,7 @@ async def get_payment_by_id(payment_id: UUID, session: AsyncSession) -> Payment:
     return payment
 
 async def create_payment(data: PaymentCreate, session: AsyncSession) -> PaymentRead:
+    """Create a manual payment record for an existing order. Validates order existence and non-negative amount."""
     if data.amount < 0:
         raise create_400("Payment amount cannot be negative")
 
@@ -77,6 +78,7 @@ async def create_payment(data: PaymentCreate, session: AsyncSession) -> PaymentR
 
 # update payment assignment id
 async def update_payment_for_pickup(id:uuid.UUID, ass_id:uuid.UUID, amount: decimal.Decimal, session:AsyncSession)->Payment:
+    """Link a payment to a pickup assignment and set its type to PICKUP_FEE with the actual collected amount."""
     payment = await get_payment_by_id(id,session);
     payment.assignment_id=ass_id;
     payment.type= PaymentType.PICKUP_FEE
@@ -96,6 +98,7 @@ async def create_delivery_payment(
     payment_type: PaymentType = PaymentType.DELIVERY_FEE,
     status: PaymentStatus = PaymentStatus.PENDING,
 ) -> Payment:
+    """Create a delivery/washing-fee payment; inherits method and currency from the order's first payment."""
     existing = (await session.exec(select(Payment).where(Payment.order_id == order_id))).first()
     method = existing.method if existing else PaymentMethod.CASH
     currency = existing.currency if existing else CurrencyType.USD
@@ -124,6 +127,7 @@ async def create_pending_settlement_payment(
     payment_type: PaymentType,
     session: AsyncSession,
 ) -> Payment:
+    """Create a PENDING_SETTLEMENT payment paid by SHOP, used when the shop advances the pickup fee on behalf of the customer."""
     existing = (await session.exec(select(Payment).where(Payment.order_id == order_id))).first()
     method = existing.method if existing else PaymentMethod.CASH
     currency = existing.currency if existing else CurrencyType.USD
@@ -162,6 +166,7 @@ async def settle_shop_advance_payment(
     payment_type: PaymentType,
     session: AsyncSession,
 ) -> Payment | None:
+    """Settle a pending shop advance: creates a COLLECTED ADVANCE_SETTLEMENT payment and marks the source as SETTLED."""
     pending = (
         await session.exec(
             select(Payment).where(
@@ -197,6 +202,7 @@ async def settle_shop_advance_payment(
 
 
 async def collect_assignment_payments(assignment_id: uuid.UUID, session: AsyncSession) -> None:
+    """Mark all PENDING payments for an assignment as COLLECTED (called when delivery is completed)."""
     payments = (
         await session.exec(
             select(Payment).where(
@@ -246,6 +252,7 @@ async def update_plain_payment(payment: Payment,session:AsyncSession)->Payment:
 
 # async def update_
 async def confirm_payment(payment_id: UUID, data: PaymentConfirm, session: AsyncSession) -> PaymentRead:
+    """Confirm a PENDING payment as COLLECTED; rejects if already confirmed."""
     payment = await session.get(Payment, payment_id)
     if payment is None:
         raise create_404("Payment not found")
@@ -263,6 +270,7 @@ async def confirm_payment(payment_id: UUID, data: PaymentConfirm, session: Async
 
 
 async def get_driver_revenue(driver_id: UUID, session: AsyncSession) -> DriverRevenueRead:
+    """Sum COLLECTED/SETTLED PICKUP_FEE and DELIVERY_FEE payments across all assignments for a driver."""
     from app.modules.drivers.models import DriverAssignment
 
     total = (
@@ -290,6 +298,7 @@ async def get_driver_revenue(driver_id: UUID, session: AsyncSession) -> DriverRe
 
 
 async def get_business_revenue(business_id: UUID, session: AsyncSession) -> BusinessRevenueRead:
+    """Sum COLLECTED WASHING_SERVICE_FEE payments for all orders belonging to a business."""
     total = (
         await session.exec(
             select(func.coalesce(func.sum(Payment.amount), 0))

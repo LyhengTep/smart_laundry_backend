@@ -1,17 +1,14 @@
 import decimal
 import logging
-from math import log
 from uuid import UUID
 import uuid
-from alembic.command import current
-from google_crc32c import value
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.api.reponse_model import Page
 from app.core.firebase import send_firebase_message
-from app.db.engine import get_session, get_session_context
+from app.db.engine import get_session_context
 from app.exceptions.http import create_400, create_404
 from app.lib.datetime import calulate_remaining_time
 from app.modules.businesses.models import LaundryBusiness
@@ -136,6 +133,7 @@ async def edit_driver(session: AsyncSession, driver_id: UUID, data: DriverWrite)
 
 # Create Assignment for driver 
 async def create_assignment(session: AsyncSession, order_id: UUID,role:DARole,driver_id:UUID )-> DriverAssignment:
+    """Create a driver assignment for an order+role pair; returns existing assignment if one already exists."""
     select_asssignment_statement= select(DriverAssignment).where(DriverAssignment.order_id==order_id,DriverAssignment.role==role)
     ass_res = await session.exec(select_asssignment_statement)
 
@@ -302,6 +300,7 @@ async def get_assignment_by_id(session: AsyncSession, assignment_id: UUID) -> Dr
 
 
 async def create_assignment_api(session: AsyncSession, data: DriverAssignmentCreate) -> DriverAssignmentRead:
+    """Validate driver is ONLINE, create the assignment, and broadcast a WebSocket event to the driver."""
     driver = await session.get(Driver, data.driver_id)
     if driver is None:
         raise create_404("Driver not found")
@@ -333,6 +332,7 @@ async def get_driver_active_assignment(session: AsyncSession, driver_id: UUID) -
 
 # When Driver called accept assignment api, the order status will be updated to PICKUP_ASSIGNED if current order status is PENDING; if current order status is READY_FOR_DELIVERY, the order status will be updated to DELIVERY_ASSIGNED
 async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_id: UUID) -> DriverAssignmentRead:
+    """Accept an assignment: updates order status (CONFIRMED→PICKUP_ASSIGNED or READY_FOR_DELIVERY→DELIVERY_ASSIGNED), sets driver BUSY, and creates the corresponding payment records."""
 
     logger.info(f"called assignment accept api {assignment_id}")
     driver = await get_driver_by_user_id(session=session, user_id=user_id) # check if driver exist for this user id
@@ -423,6 +423,7 @@ async def pickup_assignment_api(
 
 # when pickup order status is update to OrderStatus.DELIVERED_TO_SHOP and assignment is DELIVERED
 def resolve_assignment_order_status(current_status: OrderStatus, assignment_status: DAStatus) -> OrderStatus:
+    """Map (order_status, assignment_status) → next order status; raises 400 for invalid combinations."""
     if assignment_status == DAStatus.PICKED_UP:
         if current_status == OrderStatus.PICKUP_ASSIGNED:
             return OrderStatus.PICKED_UP
@@ -448,6 +449,7 @@ async def update_assignment_status_api(
     current_user: UUID = None,
     delivery_fee_paid_by: DeliveryFeePaidBy | None = None,
 ) -> DriverAssignmentRead:
+    """Advance assignment status: resolves the next order status, handles pickup-fee payment creation/settlement, and broadcasts updates."""
 
     assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
     logger.info(f"call for deliver assignment {assignment}")
@@ -631,6 +633,7 @@ async def _revert_order_to_fallback(session: AsyncSession, order_id: UUID, role:
 
 # Auto assign to two types of delivery: PICKUP and DELIVERY
 async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) -> None:
+    """Pick the first ONLINE driver and assign them to the order; reverts order to fallback status if no drivers are available."""
 
     order_statement= select(Order).where(Order.id==order_id);
     order_res = await session.exec(order_statement);
@@ -664,6 +667,7 @@ async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) 
 
 
 async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
+    """Send the assignment to the next eligible ONLINE driver (excluding previously notified ones) via WebSocket + push notification, then schedule a 60-second timeout."""
     
 
     # Select driver assignment history to get list of driver that already assigned for this order and role, then exclude those driver in the next auto assignment
@@ -689,15 +693,6 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
     logger.info(f"Retrieved assignment with details: {assignment}")
     await create_assignment_history(session=session,driver_id=drivers[0].id,role= assignment.role,order_id=assignment.order_id,assignment_id=assignment.id)
 
-    # Get customer and to be refactor later
-    customer_statement= select(User).where(User.id==assignment.order.customer_id)
-    customer_res =await session.exec(customer_statement)
-    customer = customer_res.one_or_none()
-
-    # Get Shop and to be refactor later
-    shop_statement= select(LaundryBusiness).where(LaundryBusiness.id==assignment.order.business_id)
-    shop_res =await session.exec(shop_statement)
-    shop = shop_res.one_or_none()
     remaining_time = calulate_remaining_time(assigned_time=assignment.assigned_at,expired_in_sec=60)
     # Broadcast Websocket to driver
 
@@ -725,7 +720,8 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
 
 
 # handle when driver dont accept assignment
-async  def assignment_timeout(assignment_id: UUID,):
+async def assignment_timeout(assignment_id: UUID,):
+    """Wait 60 s; if assignment is still unaccepted, record timeout history, unset the driver, and trigger re-assignment to the next available driver."""
     try:
         async with get_session_context() as session:
             await asyncio.sleep(60) # wait for 1 minute before checking if the assignment is accepted or not

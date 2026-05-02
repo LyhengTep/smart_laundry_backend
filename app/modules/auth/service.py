@@ -20,6 +20,7 @@ from app.shared.passwords import create_access_token, hash_password, verify_pass
 
 logger = logging.getLogger(__name__)
 async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
+    """Authenticate a user by username/email + password. Sets driver status ONLINE on success."""
     try:
       user: User
       statement = select(User).where(User.user_name == data.login, User.role == data.role).options(selectinload(User.driver))
@@ -33,6 +34,8 @@ async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
 
       if user is None or not verify_password(data.password, user.password_hash):
         raise create_404("Login not found")
+      if user.status != UserStatus.ACTIVE:
+        raise create_400(f"Account is {user.status.value.lower()}. Please contact support.")
       token=create_access_token(str(user.id))
 
       if data.role==RoleName.DRIVER:
@@ -61,6 +64,7 @@ async def login(data: LoginRequest, session: AsyncSession)-> LoginResponse:
        raise create_500("Unknown error occurred")
 
 async def logout(data: LogoutRequest, session: AsyncSession) -> dict[str, str]:
+   """Clear msg_token and device tokens; set driver status OFFLINE if role is DRIVER."""
    user = await session.get(User, data.user_id)
    if user is None:
       raise create_404("User not found")
@@ -80,6 +84,7 @@ async def logout(data: LogoutRequest, session: AsyncSession) -> dict[str, str]:
    return {"message": "Logout successful"}
 
 async def signup(data: SignupRequest,session: AsyncSession):
+   """Register a new user (INACTIVE by default); creates a linked Driver record if role is DRIVER."""
    try:
         statement= select(User).where(User.user_name==data.user_name,User.role==data.role)
 

@@ -4,6 +4,8 @@ import asyncio
 from collections.abc import Awaitable
 from typing import Any
 
+import app.db.base  # noqa: F401 — registers all SQLModel table metadata so mapper can resolve string relationships
+
 
 class FakeResult:
     def __init__(self, value: Any) -> None:
