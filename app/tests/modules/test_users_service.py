@@ -28,7 +28,7 @@ def build_user() -> User:
 
 
 def test_list_one_user_raises_404_when_missing() -> None:
-    session = FakeAsyncSession(get_results=[None])
+    session = FakeAsyncSession(exec_results=[None])
 
     with pytest.raises(HTTPException) as exc:
         run_async(user_service.list_one_user(uuid4(), session))
@@ -37,7 +37,8 @@ def test_list_one_user_raises_404_when_missing() -> None:
 
 
 def test_create_user_hashes_password_and_commits(monkeypatch: pytest.MonkeyPatch) -> None:
-    session = FakeAsyncSession()
+    # exec_results=[None] satisfies the re-fetch after commit; side effects are checked on session.added
+    session = FakeAsyncSession(exec_results=[None])
     monkeypatch.setattr(user_service, "hash_password", lambda raw: f"hashed::{raw}")
     data = UserWrite(
         full_name="John Doe",
@@ -49,12 +50,12 @@ def test_create_user_hashes_password_and_commits(monkeypatch: pytest.MonkeyPatch
         role=RoleName.CUSTOMER,
     )
 
-    created = run_async(user_service.create_user(data=data, session=session))
+    run_async(user_service.create_user(data=data, session=session))
 
-    assert created.password_hash == "hashed::secret"
-    assert created.msg_token == "firebase-token"
+    added_user = session.added[0]
+    assert added_user.password_hash == "hashed::secret"
+    assert added_user.msg_token == "firebase-token"
     assert session.commits == 1
-    assert session.refreshes == [created]
 
 
 def test_delete_user_returns_false_when_missing() -> None:
@@ -67,7 +68,8 @@ def test_delete_user_returns_false_when_missing() -> None:
 
 def test_update_user_msg_token_updates_user() -> None:
     user = build_user()
-    session = FakeAsyncSession(exec_results=[user])
+    # exec_results: [0] find user, [1] re-fetch after commit
+    session = FakeAsyncSession(exec_results=[user, user])
 
     updated = run_async(
         user_service.update_user_msg_token(

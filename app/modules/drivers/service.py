@@ -39,38 +39,48 @@ from app.shared.common import get_assignment_room, utc_now
 
 
 logger  = logging.getLogger(__name__)
+def _driver_with_user_options():
+    return selectinload(Driver.user).selectinload(User.driver)
+
+
+async def _fetch_driver_by_id(session: AsyncSession, driver_id) -> Driver | None:
+    result = await session.exec(
+        select(Driver).where(Driver.id == driver_id).options(_driver_with_user_options())
+    )
+    return result.one_or_none()
+
+
 async def list_drivers(session: AsyncSession, page: int, size: int,status: UserStatus) -> Page[DriverRead]:
 
     offset= (page-1)*size
 
     print(f"offset value {page} {size} {offset}")
 
-    statement= select(Driver).join(User).offset(offset).limit(size).options(selectinload(Driver.user))
+    statement= select(Driver).join(User).offset(offset).limit(size).options(_driver_with_user_options())
 
     count_statement= select(func.count(Driver.id)).join(User)
-    if status: 
+    if status:
         statement= statement.where(User.status==status)
         count_statement= count_statement.where(User.status==status)
     total_result = await session.exec(count_statement)
     total = total_result.one()
     print(f"total result count {status}")
 
- 
+
     result = await session.exec(statement)
     drivers= result.all()
     logging.info("======= Query driver result ======= %s",len(drivers))
     return Page[DriverRead](items=drivers,total=total,page=page,size=size,pages=(total+size-1)//size)
 
 async def list_one_driver(session: AsyncSession, driver_id: str) -> DriverRead:
-    result = await session.exec(select(Driver).where(Driver.id == driver_id).options(selectinload(Driver.user)))
-    driver = result.one_or_none()
+    driver = await _fetch_driver_by_id(session, driver_id)
     if not driver:
         raise create_404("Driver not found")
     return driver
 
 
 async def get_driver_by_user_id(session: AsyncSession, user_id: UUID) -> DriverRead:
-    result = await session.exec(select(Driver).where(Driver.user_id == user_id).options(selectinload(Driver.user)))
+    result = await session.exec(select(Driver).where(Driver.user_id == user_id).options(_driver_with_user_options()))
     driver = result.one_or_none()
     # if not driver:
     #     raise create_404("Driver not found for this user")
@@ -78,44 +88,37 @@ async def get_driver_by_user_id(session: AsyncSession, user_id: UUID) -> DriverR
 
 
 async def approve_driver(session: AsyncSession, driver_id: str) -> DriverRead:
-    result = await session.exec(select(Driver).where(Driver.id == driver_id).options(selectinload(Driver.user)))
-    driver = result.one_or_none()
+    driver = await _fetch_driver_by_id(session, driver_id)
 
     print(f"approve driver {driver_id} result {driver}")
     if not driver:
         raise create_404("Driver not found")
     driver.user.status = UserStatus.ACTIVE
     await session.commit()
-    await session.refresh(driver)
-    return driver
+    return await _fetch_driver_by_id(session, driver_id)
 
 
 async def reject_driver(session: AsyncSession, driver_id: str) -> DriverRead:
-    result = await session.exec(select(Driver).where(Driver.id == driver_id).options(selectinload(Driver.user)))
-    driver = result.one_or_none()
+    driver = await _fetch_driver_by_id(session, driver_id)
     if not driver:
         raise create_404("Driver not found")
     driver.user.status = UserStatus.REJECTED
     await session.commit()
-    await session.refresh(driver)
-    return driver
+    return await _fetch_driver_by_id(session, driver_id)
 
 
 async def suspend_driver(session: AsyncSession, driver_id: str) -> DriverRead:
-    result = await session.exec(select(Driver).where(Driver.id == driver_id).options(selectinload(Driver.user)))
-    driver = result.one_or_none()
+    driver = await _fetch_driver_by_id(session, driver_id)
     if not driver:
         raise create_404("Driver not found")
     driver.user.status = UserStatus.SUSPENDED
     await session.commit()
-    await session.refresh(driver)
-    return driver
+    return await _fetch_driver_by_id(session, driver_id)
 
 
 
 async def edit_driver(session: AsyncSession, driver_id: UUID, data: DriverWrite) -> DriverRead:
-    result = await session.exec(select(Driver).where(Driver.id == driver_id).options(selectinload(Driver.user)))
-    driver = result.one_or_none()
+    driver = await _fetch_driver_by_id(session, driver_id)
     if not driver:
         raise create_404("Driver not found")
     for key, value in data.model_dump(exclude_unset=True,exclude={"user"}).items():
@@ -128,8 +131,7 @@ async def edit_driver(session: AsyncSession, driver_id: UUID, data: DriverWrite)
 
     print(f"edit driver {driver_id} with data {data} result {driver}")
     await session.commit()
-    await session.refresh(driver)
-    return driver
+    return await _fetch_driver_by_id(session, driver_id)
 
 
 # Create Assignment for driver 
@@ -316,7 +318,7 @@ async def create_assignment_api(session: AsyncSession, data: DriverAssignmentCre
         get_assignment_room(data.driver_id),
         {"event": "driver_assignment_created", "assignment_id": str(assignment.id)},
     )
-    return assignment
+    return await get_assignment_with_details_v2(session=session, assignment_id=assignment.id)
 
 async def get_driver_active_assignment(session: AsyncSession, driver_id: UUID) -> DriverAssignmentRead | None:
     statement = select(DriverAssignment).where(

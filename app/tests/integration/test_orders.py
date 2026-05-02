@@ -199,3 +199,65 @@ async def test_update_order_status_confirm_with_pickup_fee(
     assert body["pickup_fee"] == 2.0
     assert body["delivery_fee"] == 2.0
     assert body["total"] == 14.0  # subtotal 10 + pickup_fee 2 + delivery_fee 2
+
+
+async def _advance_order_to(client: AsyncClient, order_id: str, token: str, *statuses: str) -> None:
+    for status in statuses:
+        await client.patch(
+            f"/api/v1/orders/{order_id}/status",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"status": status},
+        )
+
+
+async def test_search_order_by_exact_order_no(client: AsyncClient, db_session: AsyncSession) -> None:
+    customer, _ = await make_user(db_session, role="CUSTOMER")
+    merchant, _ = await make_user(db_session, role="MERCHANT")
+    business = await make_business(db_session, owner_id=merchant.id)
+    laundry_svc = await make_laundry_service(db_session)
+    biz_svc = await make_business_service(db_session, business.id, laundry_svc.id)
+
+    from app.tests.integration.conftest import make_order
+    order = await make_order(client, customer.id, business.id, biz_svc.id)
+
+    response = await client.get(f"/api/v1/orders/search?order_no={order['order_no']}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["order_no"] == order["order_no"]
+    assert body["status"] == "PENDING"
+
+
+async def test_search_order_returns_404_for_unknown_order_no(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/orders/search?order_no=ORD-DOESNOTEXIST")
+    assert response.status_code == 404
+
+
+async def test_update_order_pricing_after_delivery_to_shop(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    customer, _ = await make_user(db_session, role="CUSTOMER")
+    merchant, token = await make_user(db_session, role="MERCHANT")
+    business = await make_business(db_session, owner_id=merchant.id)
+    laundry_svc = await make_laundry_service(db_session)
+    biz_svc = await make_business_service(db_session, business.id, laundry_svc.id)
+
+    from app.tests.integration.conftest import make_order
+    order = await make_order(client, customer.id, business.id, biz_svc.id)
+    order_id = order["id"]
+
+    await _advance_order_to(
+        client, order_id, token,
+        "CONFIRMED", "PICKUP_ASSIGNED", "PICKED_UP", "DELIVERED_TO_SHOP",
+    )
+
+    item_id = order["items"][0]["id"]
+    response = await client.patch(
+        f"/api/v1/orders/{order_id}/pricing",
+        json={"items": [{"order_item_id": item_id, "quantity": 3.0}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["items"][0]["quantity"] == 3.0
+    assert body["total"] == 15.0  # 5.0 price × 3.0 qty

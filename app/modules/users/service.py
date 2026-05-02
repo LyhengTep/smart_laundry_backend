@@ -12,31 +12,31 @@ import logging
 
 
 logger=logging.getLogger(__name__)
+async def _fetch_user(user_id: UUID, session: AsyncSession) -> User | None:
+    result = await session.exec(select(User).where(User.id == user_id).options(selectinload(User.driver)))
+    return result.one_or_none()
+
+
 async def list_users(session: AsyncSession) -> list[UserRead]:
-    result = await session.exec(select(User))
+    result = await session.exec(select(User).options(selectinload(User.driver)))
     return result.all()
 
 
-
-async def list_one_user(user_id: UUID,session: AsyncSession) -> UserRead:
-    result = await session.get(User, user_id)
-    print(f"=======================>result is {result}")
-
-    if result is None: 
+async def list_one_user(user_id: UUID, session: AsyncSession) -> UserRead:
+    user = await _fetch_user(user_id, session)
+    if user is None:
         raise create_404("User not found")
-    return result
-async def create_user(data:UserWrite,session: AsyncSession,) -> UserRead:
+    return user
+
+
+async def create_user(data: UserWrite, session: AsyncSession) -> UserRead:
     try:
-        logging.info("Calling create user %s",data.model_dump())
-        user= User(**data.model_dump(exclude={"password"}))
-        user.password_hash=hash_password(data.password)
-        print(user.password_hash)
+        logging.info("Calling create user %s", data.model_dump())
+        user = User(**data.model_dump(exclude={"password"}))
+        user.password_hash = hash_password(data.password)
         session.add(user)
         await session.commit()
-        await session.refresh(user)
-
-        print(user)
-        return user
+        return await _fetch_user(user.id, session)
     except Exception as e:
         logging.exception("Failed to create user and need to rollback")
         await session.rollback()
@@ -71,5 +71,4 @@ async def update_user_msg_token(
     user.msg_token = data.msg_token
     session.add(user)
     await session.commit()
-    await session.refresh(user)
-    return user
+    return await _fetch_user(user_id, session)

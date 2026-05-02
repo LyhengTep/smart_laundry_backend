@@ -26,7 +26,8 @@ async def create_business_service(session: AsyncSession, data: BusinessServiceWr
     business_service = BusinessService(
         business_id=data.business_id,
         service_id=data.service_id,
-        base_price=data.base_price
+        base_price=data.base_price,
+        pricing_type=data.pricing_type,
     )
     session.add(business_service)
     await session.commit()

@@ -57,7 +57,8 @@ def build_assignment(driver_id: UUID | None = None) -> DriverAssignment:
 
 def test_approve_driver_sets_user_active() -> None:
     driver = build_driver()
-    session = FakeAsyncSession(exec_results=[driver])
+    # exec_results: [0] initial fetch, [1] re-fetch after commit
+    session = FakeAsyncSession(exec_results=[driver, driver])
 
     result = run_async(driver_service.approve_driver(session, str(driver.id)))
 
@@ -87,7 +88,11 @@ def test_create_assignment_api_creates_assignment_for_online_driver(monkeypatch:
     async def fake_send_json(room: str, payload: dict) -> None:
         websocket_events.append((room, payload))
 
+    async def fake_get_assignment_details(session, assignment_id):
+        return assignment
+
     monkeypatch.setattr(driver_service, "create_assignment", fake_create_assignment)
+    monkeypatch.setattr(driver_service, "get_assignment_with_details_v2", fake_get_assignment_details)
     monkeypatch.setattr(driver_service.connection_manager, "send_json", fake_send_json)
 
     result = run_async(
@@ -239,7 +244,8 @@ def test_list_one_driver_raises_not_found() -> None:
 
 def test_edit_driver_updates_driver_and_user_fields() -> None:
     driver = build_driver()
-    session = FakeAsyncSession(exec_results=[driver])
+    # exec_results: [0] initial fetch, [1] re-fetch after commit
+    session = FakeAsyncSession(exec_results=[driver, driver])
     data = DriverWrite(
         plate_number="NEW123",
         id_card_number="NEWID",

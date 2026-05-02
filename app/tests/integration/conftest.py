@@ -210,3 +210,47 @@ async def make_business_service(session: AsyncSession, business_id, laundry_serv
     await session.commit()
     await session.refresh(bs)
     return bs
+
+
+async def make_driver(session: AsyncSession, user_id) -> object:
+    """Insert a Driver record for the given user_id with ONLINE status."""
+    from app.lib.datetime import utc_now
+    from app.modules.drivers.models import Driver, DriverStatus
+
+    driver = Driver(
+        id=uuid4(),
+        user_id=user_id,
+        plate_number="ABC-1234",
+        id_card_number="ID-TEST-001",
+        vehicle_type="Motorbike",
+        vehicle_color="Red",
+        license_number="LIC-TEST-001",
+        driver_status=DriverStatus.ONLINE,
+        created_at=utc_now(),
+        updated_at=utc_now(),
+    )
+    session.add(driver)
+    await session.commit()
+    await session.refresh(driver)
+    return driver
+
+
+async def make_order(client: AsyncClient, customer_id, business_id, business_service_id) -> dict:
+    """Create an order via the API and return the response body."""
+    payload = {
+        "customer_id": str(customer_id),
+        "business_id": str(business_id),
+        "pickup_method": "PICKUP",
+        "payment_method": "CASH",
+        "payment_currency": "USD",
+        "pickup_address": "123 Home St",
+        "delivery_address": "456 Shop St",
+        "pickup_latitude": 11.5,
+        "pickup_longitude": 104.9,
+        "delivery_latitude": 11.6,
+        "delivery_longitude": 104.8,
+        "discount": 0,
+        "items": [{"business_service_id": str(business_service_id), "quantity": 2.0}],
+    }
+    response = await client.post("/api/v1/orders/", json=payload)
+    return response.json()
