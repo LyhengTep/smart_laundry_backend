@@ -43,6 +43,10 @@ def _get_session_factory():
     return _session_factory
 
 
+def async_session() -> AsyncSession:
+    return _get_session_factory()()
+
+
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with _get_session_factory()() as session:
         yield session
