@@ -7,10 +7,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.reponse_model import Page
 from app.db.engine import get_session
 from app.modules.businesses.models import ShopStatus
-from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, ShopStatusResponse, ShopStatusUpdate, SingleBusinessRead
+from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, DeactivationActionRequest, ShopStatusResponse, ShopStatusUpdate, SingleBusinessRead
 from app.modules.businesses import service as svc
 from app.modules.payments import service as payment_svc
 from app.modules.payments.schema import BusinessRevenueRead
+from app.lib.security import require_admin
 from app.shared.passwords import get_current_user
 
 
@@ -74,6 +75,16 @@ async def get_business_revenue(
     session: AsyncSession = Depends(get_session),
 ) -> BusinessRevenueRead:
     return await payment_svc.get_business_revenue(business_id=business_id, session=session)
+
+
+@router.patch("/{business_id}/deactivation", response_model=BusinessRead)
+async def resolve_deactivation(
+    business_id: UUID,
+    data: DeactivationActionRequest,
+    session: AsyncSession = Depends(get_session),
+    _: str = Depends(require_admin),
+) -> BusinessRead:
+    return await svc.resolve_deactivation(business_id, data, session)
 
 
 @router.post("/test")

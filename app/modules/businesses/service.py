@@ -12,7 +12,7 @@ from app.api.reponse_model import Page
 from app.exceptions.http import create_401, create_403, create_404, create_409
 from app.modules.business_services.model import BusinessService
 from app.modules.businesses.models import LaundryBusiness, ShopStatus
-from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, ShopStatusAction, ShopStatusResponse, ShopStatusUpdate, SingleBusinessRead
+from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, DeactivationAction, DeactivationActionRequest, ShopStatusAction, ShopStatusResponse, ShopStatusUpdate, SingleBusinessRead
 from app.modules.orders.models import Order, OrderStatus
 from app.modules.reviews.models import ShopReview
 from app.modules.reviews.schema import ShopReviewSummary
@@ -286,10 +286,39 @@ async def remove_business(business_id: UUID, current_user: uuid.UUID, session: A
     if business.owner_id != UUID(current_user):
         raise create_401("You are not authorized to delete this business")
     
-    if business.status==ShopStatus.PENDING: 
+    if business.status==ShopStatus.PENDING:
         business.status=ShopStatus.DEACTIVATED
     else:
         business.status=ShopStatus.PENDING_DEACTIVATION
-    
+
     session.add(business)
     await session.commit()
+
+
+async def resolve_deactivation(
+    business_id: UUID,
+    data: DeactivationActionRequest,
+    session: AsyncSession,
+) -> BusinessRead:
+    """Approve or reject a PENDING_DEACTIVATION request; admin only."""
+    result = await session.exec(
+        select(LaundryBusiness)
+        .where(LaundryBusiness.id == business_id)
+        .options(selectinload(LaundryBusiness.owner))
+    )
+    business = result.first()
+    if not business:
+        raise create_404("Business not found")
+    if business.status != ShopStatus.PENDING_DEACTIVATION:
+        from app.exceptions.http import create_400
+        raise create_400("Business is not pending deactivation")
+
+    if data.action == DeactivationAction.APPROVE:
+        business.status = ShopStatus.DEACTIVATED
+    else:
+        business.status = ShopStatus.CLOSED
+
+    session.add(business)
+    await session.commit()
+    await session.refresh(business)
+    return business

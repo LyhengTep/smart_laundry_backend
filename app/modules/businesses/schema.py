@@ -58,6 +58,15 @@ class ShopStatusAction(str, Enum):
     OPEN = "OPEN"
 
 
+class DeactivationAction(str, Enum):
+    APPROVE = "APPROVE"
+    REJECT = "REJECT"
+
+
+class DeactivationActionRequest(SQLModel):
+    action: DeactivationAction
+
+
 class ShopStatusUpdate(SQLModel):
     action: ShopStatusAction
     force: bool = False
