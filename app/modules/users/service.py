@@ -86,6 +86,21 @@ async def create_user(data: UserWrite, session: AsyncSession) -> UserRead:
         raise e
     
 
+async def create_admin(data: UserWrite, session: AsyncSession) -> UserRead:
+    """Create a new admin user; forces role=ADMIN and status=ACTIVE regardless of input."""
+    try:
+        user = User(**data.model_dump(exclude={"password", "role"}))
+        user.role = RoleName.ADMIN
+        user.status = UserStatus.ACTIVE
+        user.password_hash = hash_password(data.password)
+        session.add(user)
+        await session.commit()
+        return await _fetch_user(user.id, session)
+    except Exception as e:
+        await session.rollback()
+        raise e
+
+
 async def edit_user(user_id: UUID, data: UserEdit, session: AsyncSession) -> UserRead:
     """Update user fields; raises 404 if not found."""
     user = await _fetch_user(user_id, session)

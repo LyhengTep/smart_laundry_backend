@@ -236,6 +236,37 @@ async def test_update_user_msg_token(client: AsyncClient, db_session: AsyncSessi
     assert response.json()["id"] == str(user.id)
 
 
+async def test_create_admin_by_admin_succeeds(client: AsyncClient, db_session: AsyncSession) -> None:
+    _, token = await make_user(db_session, role="ADMIN")
+
+    response = await client.post(
+        "/api/v1/users/admin",
+        json=_user_payload(role="CUSTOMER"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["role"] == "ADMIN"
+    assert response.json()["status"] == "ACTIVE"
+
+
+async def test_create_admin_by_non_admin_returns_403(client: AsyncClient, db_session: AsyncSession) -> None:
+    _, token = await make_user(db_session, role="CUSTOMER")
+
+    response = await client.post(
+        "/api/v1/users/admin",
+        json=_user_payload(),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_create_admin_requires_auth(client: AsyncClient) -> None:
+    response = await client.post("/api/v1/users/admin", json=_user_payload())
+    assert response.status_code == 401
+
+
 async def test_clear_user_msg_token(client: AsyncClient, db_session: AsyncSession) -> None:
     user, token = await make_user(db_session)
     await client.patch(

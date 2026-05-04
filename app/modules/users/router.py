@@ -4,7 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.reponse_model import Page
 from app.db.engine import get_session
-from app.lib.security import get_current_user
+from app.lib.security import get_current_user, require_admin
 from app.modules.users import service as svc
 from app.modules.users.models import UserStatus
 from app.modules.users.schema import UserEdit, UserMsgTokenUpdate, UserRead, UserWrite
@@ -41,6 +41,15 @@ async def create_users(
     _: str = Depends(get_current_user),
 ) -> UserRead:
     return await svc.create_user(data=data, session=session)
+
+
+@router.post("/admin", response_model=UserRead)
+async def create_admin(
+    data: UserWrite,
+    session: AsyncSession = Depends(get_session),
+    _: str = Depends(require_admin),
+) -> UserRead:
+    return await svc.create_admin(data=data, session=session)
 
 
 @router.patch("/{user_id}", response_model=UserRead)

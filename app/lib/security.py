@@ -5,9 +5,12 @@ import bcrypt
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import JWT_ALGORITHM, JWT_SECRET
-from app.exceptions.http import create_401
+from app.db.engine import get_session
+from app.exceptions.http import create_401, create_403
 
 
 security = HTTPBearer()
@@ -32,6 +35,21 @@ def hash_password(pw: str) -> str:
 
 def verify_password(pw: str, hashed_pw: str) -> bool:
     return bcrypt.checkpw(pw.encode(), hashed_pw.encode())
+
+
+async def require_admin(
+    user_id: str = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> str:
+    from uuid import UUID
+    from app.modules.users.models import User
+    from app.shared.common import RoleName
+
+    result = await session.exec(select(User).where(User.id == UUID(user_id)))
+    user = result.one_or_none()
+    if user is None or user.role != RoleName.ADMIN:
+        raise create_403("Admin access required")
+    return user_id
 
 
 def create_access_token(subject: str) -> str:
