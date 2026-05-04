@@ -1,4 +1,4 @@
-"""drop unique constraint on user_name
+"""drop unique user_name; add composite unique (user_name, role)
 
 Revision ID: m5n6o7p8q9r0
 Revises: l4m5n6o7p8q9
@@ -16,8 +16,10 @@ depends_on = None
 def upgrade() -> None:
     op.drop_index("ix_users_user_name", table_name="users")
     op.create_index("ix_users_user_name", "users", ["user_name"], unique=False)
+    op.create_unique_constraint("uq_users_user_name_role", "users", ["user_name", "role"])
 
 
 def downgrade() -> None:
+    op.drop_constraint("uq_users_user_name_role", "users", type_="unique")
     op.drop_index("ix_users_user_name", table_name="users")
     op.create_index("ix_users_user_name", "users", ["user_name"], unique=True)

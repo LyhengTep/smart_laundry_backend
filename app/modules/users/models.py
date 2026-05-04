@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 from sqlmodel import Field, Relationship,SQLModel
-from sqlalchemy import Column, DateTime, Enum as SAEnum, String, Text
+from sqlalchemy import Column, DateTime, Enum as SAEnum, String, Text, UniqueConstraint
 from uuid import UUID, uuid4
 from enum import Enum
 
@@ -20,7 +20,8 @@ if TYPE_CHECKING:
 
 
 class User(SQLModel, table=True):
-    __tablename__="users"
+    __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("user_name", "role", name="uq_users_user_name_role"),)
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
 
     full_name: str = Field(sa_column=Column(String(120), nullable=False))
