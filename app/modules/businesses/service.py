@@ -52,13 +52,13 @@ async def list_my_businesses(
     offset = (page - 1) * size
     statement = (
         select(LaundryBusiness)
-        .where(LaundryBusiness.owner_id == owner_id)
+        .where(LaundryBusiness.owner_id == owner_id, LaundryBusiness.status != ShopStatus.DEACTIVATED)
         .options(selectinload(LaundryBusiness.owner))
         .offset(offset)
         .limit(size)
     )
     count_statement = select(func.count(LaundryBusiness.id)).where(
-        LaundryBusiness.owner_id == owner_id
+        LaundryBusiness.owner_id == owner_id, LaundryBusiness.status != ShopStatus.DEACTIVATED
     )
     total = (await session.exec(count_statement)).one()
     businesses = (await session.exec(statement)).all()
