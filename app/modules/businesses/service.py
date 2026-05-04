@@ -73,18 +73,16 @@ async def list_my_businesses(
     return Page[BusinessRead](items=items, total=total, page=page, size=size, pages=(total + size - 1) // size)
 
 
-async def list_businesses(session: AsyncSession, page: int, size: int,status: UserStatus,is_open:bool=None, q:str=None) -> Page[BusinessRead]:
+async def list_businesses(session: AsyncSession, page: int, size: int, status: ShopStatus = None, is_open: bool = None, q: str = None) -> Page[BusinessRead]:
 
     offset= (page-1)*size
 
-    print(f"offset value {page} {size} {offset}")
-
     statement= select(LaundryBusiness).join(User).offset(offset).limit(size).where(LaundryBusiness.status!=ShopStatus.DEACTIVATED).options(selectinload(LaundryBusiness.owner))
-    
-    count_statement= select(func.count(LaundryBusiness.id)).join(User)
-    if status: 
-        statement= statement.where(User.status==status)
-        count_statement= count_statement.where(User.status==status)
+
+    count_statement= select(func.count(LaundryBusiness.id)).join(User).where(LaundryBusiness.status!=ShopStatus.DEACTIVATED)
+    if status:
+        statement= statement.where(LaundryBusiness.status==status)
+        count_statement= count_statement.where(LaundryBusiness.status==status)
 
     if is_open:
         statuses = [ShopStatus.APPROVED,ShopStatus.OPEN]

@@ -6,11 +6,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.reponse_model import Page
 from app.db.engine import get_session
+from app.modules.businesses.models import ShopStatus
 from app.modules.businesses.schema import BusinessRead, BusinessUpdate, BusinessWrite, ShopStatusResponse, ShopStatusUpdate, SingleBusinessRead
 from app.modules.businesses import service as svc
 from app.modules.payments import service as payment_svc
 from app.modules.payments.schema import BusinessRevenueRead
-from app.modules.users.models import UserStatus
 from app.shared.passwords import get_current_user
 
 
@@ -27,15 +27,15 @@ async def list_my_businesses(
 
 
 @router.get("/",response_model=Page[BusinessRead])
-async def list_businesses(page: int =Query(1,ge=1),size: int=Query(10,ge=1,le=100),
-                       status: Optional[UserStatus]=Query(None),
-                       is_open: Optional[bool]=Query(None),
-                       q: Optional[str]=Query(None),
-                       session: AsyncSession = Depends(get_session)
-
-                       )->list[BusinessRead]:
-
-    return await svc.list_businesses(session,page,size,status,is_open,q)
+async def list_businesses(
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    status: Optional[ShopStatus] = Query(None),
+    is_open: Optional[bool] = Query(None),
+    q: Optional[str] = Query(None),
+    session: AsyncSession = Depends(get_session),
+) -> Page[BusinessRead]:
+    return await svc.list_businesses(session, page, size, status, is_open, q)
 
 
 @router.get("/{business_id}",response_model=SingleBusinessRead)
