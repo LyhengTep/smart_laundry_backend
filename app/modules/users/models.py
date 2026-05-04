@@ -24,7 +24,7 @@ class User(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
 
     full_name: str = Field(sa_column=Column(String(120), nullable=False))
-    user_name: str = Field(sa_column=Column(String(60), nullable=False, unique=True, index=True))
+    user_name: str = Field(sa_column=Column(String(60), nullable=False, index=True))
     email: str = Field(sa_column=Column(String(255), nullable=False))
     phone: str | None = Field(default=None, sa_column=Column(String(30), unique=True, nullable=True))
     msg_token: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
