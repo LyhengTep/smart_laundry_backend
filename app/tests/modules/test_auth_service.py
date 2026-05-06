@@ -101,7 +101,7 @@ def test_login_raises_not_found_for_invalid_password(monkeypatch: pytest.MonkeyP
 
 
 def test_login_raises_not_found_for_missing_user() -> None:
-    session = FakeAsyncSession(exec_results=[NoResultFound()])
+    session = FakeAsyncSession(exec_results=[None])
 
     with pytest.raises(Exception) as exc:
         run_async(
@@ -134,7 +134,8 @@ def test_signup_rejects_existing_user() -> None:
 def test_logout_clears_customer_msg_token() -> None:
     user = build_user()
     user.msg_token = "firebase-token"
-    session = FakeAsyncSession(get_results=[user], exec_results=[[]])
+    # user_repo.get_by_id uses exec(); delete_device_tokens also uses exec()
+    session = FakeAsyncSession(exec_results=[user, []])
 
     response = run_async(
         auth_service.logout(
@@ -162,7 +163,8 @@ def test_logout_sets_driver_offline_and_clears_token() -> None:
         license_number=None,
         vehicle_color="Red",
     )
-    session = FakeAsyncSession(get_results=[user], exec_results=[[], driver])
+    # user_repo.get_by_id → user; delete_device_tokens → []; select Driver → driver
+    session = FakeAsyncSession(exec_results=[user, [], driver])
 
     response = run_async(
         auth_service.logout(

@@ -2,10 +2,8 @@ import decimal
 import logging
 from uuid import UUID
 import uuid
-from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.orm import selectinload
 from app.api.reponse_model import Page
 from app.core.firebase import send_firebase_message
 from app.db.engine import get_session_context
@@ -22,9 +20,10 @@ from app.modules.drivers.schema import (
     DriverRead,
     DriverWrite,
 )
+from app.modules.drivers import repository as repo
 from app.modules.orders.models import DeliveryFeePaidBy, Order, OrderStatus
 from app.modules.orders.service import get_order_by_id, update_order_status, update_order_status_api
-from app.modules.orders.schema import  OrderReadV2, OrderStatusUpdate
+from app.modules.orders.schema import OrderReadV2, OrderStatusUpdate
 from app.modules.payments.models import PaymentStatus, PaymentType
 from app.modules.payments.service import collect_assignment_payments, create_delivery_payment, create_pending_settlement_payment, get_pending_payment_by_order_id, settle_shop_advance_payment, update_payment_for_pickup
 from app.modules.users.models import User, UserStatus
@@ -34,148 +33,86 @@ import asyncio
 from app.shared.common import get_assignment_room, utc_now
 
 
-
-logger  = logging.getLogger(__name__)
-def _driver_with_user_options():
-    return selectinload(Driver.user).selectinload(User.driver)
+logger = logging.getLogger(__name__)
 
 
-async def _fetch_driver_by_id(session: AsyncSession, driver_id) -> Driver | None:
-    result = await session.exec(
-        select(Driver).where(Driver.id == driver_id).options(_driver_with_user_options())
-    )
-    return result.one_or_none()
+async def list_drivers(session: AsyncSession, page: int, size: int, status: UserStatus) -> Page[DriverRead]:
+    return await repo.list_paginated(session, status=status, page=page, size=size)
 
-
-async def list_drivers(session: AsyncSession, page: int, size: int,status: UserStatus) -> Page[DriverRead]:
-
-    offset= (page-1)*size
-
-    print(f"offset value {page} {size} {offset}")
-
-    statement= select(Driver).join(User).offset(offset).limit(size).options(_driver_with_user_options())
-
-    count_statement= select(func.count(Driver.id)).join(User)
-    if status:
-        statement= statement.where(User.status==status)
-        count_statement= count_statement.where(User.status==status)
-    total_result = await session.exec(count_statement)
-    total = total_result.one()
-    print(f"total result count {status}")
-
-
-    result = await session.exec(statement)
-    drivers= result.all()
-    logging.info("======= Query driver result ======= %s",len(drivers))
-    return Page[DriverRead](items=drivers,total=total,page=page,size=size,pages=(total+size-1)//size)
 
 async def list_one_driver(session: AsyncSession, driver_id: str) -> DriverRead:
-    driver = await _fetch_driver_by_id(session, driver_id)
+    driver = await repo.get_by_id(driver_id, session)
     if not driver:
         raise create_404("Driver not found")
     return driver
 
 
-async def get_driver_by_user_id(session: AsyncSession, user_id: UUID) -> DriverRead:
-    result = await session.exec(select(Driver).where(Driver.user_id == user_id).options(_driver_with_user_options()))
-    driver = result.one_or_none()
-    # if not driver:
-    #     raise create_404("Driver not found for this user")
-    return driver
+async def get_driver_by_user_id(session: AsyncSession, user_id: UUID) -> Driver | None:
+    return await repo.get_by_user_id(user_id, session)
 
 
 async def approve_driver(session: AsyncSession, driver_id: str) -> DriverRead:
-    driver = await _fetch_driver_by_id(session, driver_id)
-
-    print(f"approve driver {driver_id} result {driver}")
+    driver = await repo.get_by_id(driver_id, session)
     if not driver:
         raise create_404("Driver not found")
     driver.user.status = UserStatus.ACTIVE
-    await session.commit()
-    return await _fetch_driver_by_id(session, driver_id)
+    return await repo.save_driver(driver, session)
 
 
 async def reject_driver(session: AsyncSession, driver_id: str) -> DriverRead:
-    driver = await _fetch_driver_by_id(session, driver_id)
+    driver = await repo.get_by_id(driver_id, session)
     if not driver:
         raise create_404("Driver not found")
     driver.user.status = UserStatus.REJECTED
-    await session.commit()
-    return await _fetch_driver_by_id(session, driver_id)
+    return await repo.save_driver(driver, session)
 
 
 async def suspend_driver(session: AsyncSession, driver_id: str) -> DriverRead:
-    driver = await _fetch_driver_by_id(session, driver_id)
+    driver = await repo.get_by_id(driver_id, session)
     if not driver:
         raise create_404("Driver not found")
     driver.user.status = UserStatus.SUSPENDED
-    await session.commit()
-    return await _fetch_driver_by_id(session, driver_id)
+    return await repo.save_driver(driver, session)
 
 
 
 async def edit_driver(session: AsyncSession, driver_id: UUID, data: DriverWrite) -> DriverRead:
-    driver = await _fetch_driver_by_id(session, driver_id)
+    driver = await repo.get_by_id(driver_id, session)
     if not driver:
         raise create_404("Driver not found")
-    for key, value in data.model_dump(exclude_unset=True,exclude={"user"}).items():
+    for key, value in data.model_dump(exclude_unset=True, exclude={"user"}).items():
         setattr(driver, key, value)
-
-
     for key, value in data.user.model_dump(exclude_unset=True, exclude={"password"}).items():
         setattr(driver.user, key, value)
+    return await repo.save_driver(driver, session)
 
 
-    print(f"edit driver {driver_id} with data {data} result {driver}")
-    await session.commit()
-    return await _fetch_driver_by_id(session, driver_id)
-
-
-# Create Assignment for driver 
-async def create_assignment(session: AsyncSession, order_id: UUID,role:DARole,driver_id:UUID )-> DriverAssignment:
+# Create Assignment for driver
+async def create_assignment(session: AsyncSession, order_id: UUID, role: DARole, driver_id: UUID) -> DriverAssignment:
     """Create a driver assignment for an order+role pair; returns existing assignment if one already exists."""
-    select_asssignment_statement= select(DriverAssignment).where(DriverAssignment.order_id==order_id,DriverAssignment.role==role)
-    ass_res = await session.exec(select_asssignment_statement)
-
-    assignment = ass_res.one_or_none()
-
-    if assignment is not None: 
-            logger.info(f"Assignment already exists for order {order_id} and role {role}")
-            return assignment
-    
+    assignment = await repo.get_assignment_by_order_and_role(order_id, role, session)
+    if assignment is not None:
+        logger.info(f"Assignment already exists for order {order_id} and role {role}")
+        return assignment
 
     logger.info(f"Creating assignment for order {order_id} and role {role}")
-    order_statement= select(Order).where(Order.id==order_id);
-    order_res = await session.exec(order_statement);
-    order= order_res.one_or_none();
+    order_res = await session.exec(select(Order).where(Order.id == order_id))
+    order = order_res.one_or_none()
     if order is None:
-            raise Exception("Order not found")
-    
-    assignment= DriverAssignment(
-        order_id=order.id,
-        role=role,
-        driver_id=driver_id
-    )
-    session.add(assignment)
-    await session.commit()
-    await session.refresh(assignment)
-    return assignment
+        raise Exception("Order not found")
 
-async def get_assigned_order(session:AsyncSession, current_user:UUID)->ActiveAssignmentResponse:
-    driver= await get_driver_by_user_id(session,current_user)
-    statement = assignment_detail_query_builder().where(DriverAssignment.driver_id==driver.id,DriverAssignment.status==None)
+    assignment = DriverAssignment(order_id=order.id, role=role, driver_id=driver_id)
+    return await repo.save_assignment(assignment, session)
 
-    ass_res = await session.exec(statement)
 
-    res= ass_res.one_or_none()
-
-    if res is None:
+async def get_assigned_order(session: AsyncSession, current_user: UUID) -> ActiveAssignmentResponse:
+    driver = await get_driver_by_user_id(session, current_user)
+    assignment = await repo.get_pending_assignment_by_driver(driver.id, session)
+    if assignment is None:
         raise create_404("Assigned package is not found")
-
-    time_remaining= calulate_remaining_time(assigned_time=res.assigned_at,expired_in_sec=60)
+    time_remaining = calulate_remaining_time(assigned_time=assignment.assigned_at, expired_in_sec=60)
     logger.info(f"assigned order time remaining is {time_remaining}")
-    active_ass= ActiveAssignmentResponse(assignment=res,timeout=time_remaining)
-    return active_ass
+    return ActiveAssignmentResponse(assignment=assignment, timeout=time_remaining)
 
 
 
@@ -186,114 +123,49 @@ async def list_assignments(
     order_id: UUID | None = None,
     role: DARole | None = None,
     status: DAStatus | None = None,
-    status_not_in: list[DAStatus]=[],
+    status_not_in: list[DAStatus] = [],
     page: int = 1,
     size: int = 10,
-    # user_id: uuid.UUID
 ) -> Page[DriverAssignmentRead]:
-    
-
-    # driver_statement=select(Driver).where(Driver.user_id==user_id)
-    # driver_res= await session.exec(driver_statement)
-    # driver = driver_res.one_or_none()
-    # if driver is None:
-    #     driver_id=driver.id
-    
-    offset = (page - 1) * size
-    statement = select(DriverAssignment).offset(offset).limit(size).order_by(DriverAssignment.created_at.desc()).options(selectinload(DriverAssignment.order).selectinload(Order.items),
-                                                                                                                         selectinload(DriverAssignment.order).selectinload(Order.customer),
-                                                                                                                         selectinload(DriverAssignment.order).selectinload(Order.business),
-                                                                                                                         selectinload(DriverAssignment.payment))
-    count_statement = select(func.count(DriverAssignment.id))
-    logger.info(f"status not in {status_not_in} and {len(status_not_in)}")
-    if len(status_not_in)>0:
-        statement = statement.where(DriverAssignment.status.notin_(status_not_in))
-        count_statement = count_statement.where(DriverAssignment.status.notin_(status_not_in))
-    if driver_id is not None:
-        statement = statement.where(DriverAssignment.driver_id == driver_id)
-        count_statement = count_statement.where(DriverAssignment.driver_id == driver_id)
-    if order_id is not None:
-        statement = statement.where(DriverAssignment.order_id == order_id)
-        count_statement = count_statement.where(DriverAssignment.order_id == order_id)
-    if role is not None:
-        statement = statement.where(DriverAssignment.role == role)
-        count_statement = count_statement.where(DriverAssignment.role == role)
-    if status is not None:
-        statement = statement.where(DriverAssignment.status == status)
-        count_statement = count_statement.where(DriverAssignment.status == status)
-
-    total = (await session.exec(count_statement)).one()
-    assignments = (await session.exec(statement)).all()
-    return Page[DriverAssignmentRead](
-        items=assignments,
-        total=total,
-        page=page,
-        size=size,
-        pages=(total + size - 1) // size,
-    )
-
-async def create_assignment_history(session: AsyncSession, driver_id: UUID,order_id: UUID,assignment_id:UUID,role:DARole,reason: str=None) -> DriverAssignmentHistory:
-
-    logger.info(f"calling to create assignment history with order id {order_id} driver id {driver_id} assignment id {assignment_id} role {role} reason {reason}")
-    his_assignment = DriverAssignmentHistory(
+    return await repo.list_assignments_paginated(
+        session,
         driver_id=driver_id,
         order_id=order_id,
-        assignment_id=assignment_id,
         role=role,
-        reason=reason
+        status=status,
+        status_not_in=status_not_in or [],
+        page=page,
+        size=size,
     )
 
-    session.add(his_assignment)
-    await session.commit()
-    session.refresh(his_assignment)
-
-    return his_assignment
-
-
-async def get_assignment(session: AsyncSession,assignment_id)-> DriverAssignment:
-    ass_statement= select(DriverAssignment).where(DriverAssignment.id==assignment_id)
-
-    ass_res = await session.exec(ass_statement)
-    assignment= ass_res.one_or_none()
-    return assignment
-
-async def get_assignment_with_details(session: AsyncSession,assignment_id)-> DriverAssignment:
-    ass_statement= select(DriverAssignment).where(DriverAssignment.id==assignment_id).options(selectinload(DriverAssignment.order).selectinload(Order.items))
-
-    ass_res = await session.exec(ass_statement)
-    assignment= ass_res.first()
-
-    logger.info(f"Retrieved assignment with details: {assignment}")
-    return assignment
+async def create_assignment_history(
+    session: AsyncSession, driver_id: UUID, order_id: UUID, assignment_id: UUID, role: DARole, reason: str = None
+) -> DriverAssignmentHistory:
+    logger.info(f"calling to create assignment history with order id {order_id} driver id {driver_id} assignment id {assignment_id} role {role} reason {reason}")
+    history = DriverAssignmentHistory(
+        driver_id=driver_id, order_id=order_id, assignment_id=assignment_id, role=role, reason=reason
+    )
+    return await repo.save_assignment_history(history, session)
 
 
+async def get_assignment(session: AsyncSession, assignment_id) -> DriverAssignment:
+    return await repo.get_assignment_by_id(assignment_id, session)
 
-async def get_assignment_with_details_v2(session: AsyncSession,assignment_id)-> DriverAssignment:
-    ass_statement= select(DriverAssignment).where(DriverAssignment.id==assignment_id).options(selectinload(DriverAssignment.order).selectinload(Order.items),
-                                                                                              selectinload(DriverAssignment.order).selectinload(Order.business),
-                                                                                              selectinload(DriverAssignment.order).selectinload(Order.customer).selectinload(User.driver),
-                                                                                              selectinload(DriverAssignment.payment))
 
-    ass_res = await session.exec(ass_statement)
-    assignment= ass_res.first()
+async def get_assignment_with_details(session: AsyncSession, assignment_id) -> DriverAssignment:
+    return await repo.get_assignment_with_items(assignment_id, session)
 
-    logger.info(f"Retrieved assignment with details: {assignment}")
-    return assignment
 
+async def get_assignment_with_details_v2(session: AsyncSession, assignment_id) -> DriverAssignment:
+    return await repo.get_assignment_with_full_relations(assignment_id, session)
 
 
 async def get_assignment_by_order_role(order_id: uuid.UUID, role: DARole, session: AsyncSession) -> DriverAssignment:
-    statement= select(DriverAssignment).where(DriverAssignment.order_id==order_id, DriverAssignment.role==role)
-    result = await session.exec(statement)
-    return result.one_or_none()
+    return await repo.get_assignment_by_order_and_role(order_id, role, session)
 
-def assignment_detail_query_builder():
-    return (select(DriverAssignment).options(selectinload(DriverAssignment.order).selectinload(Order.items),
-                                                                                              selectinload(DriverAssignment.order).selectinload(Order.business),
-                                                                                              selectinload(DriverAssignment.order).selectinload(Order.customer).selectinload(User.driver),
-                                                                                              selectinload(DriverAssignment.payment)))
+
 async def get_assignment_by_id(session: AsyncSession, assignment_id: UUID) -> DriverAssignmentRead:
-    assignment = await get_assignment_with_details_v2(session=session, assignment_id=assignment_id)
+    assignment = await repo.get_assignment_with_full_relations(assignment_id, session)
     if assignment is None:
         raise create_404("Driver assignment not found")
     return assignment
@@ -320,13 +192,7 @@ async def create_assignment_api(session: AsyncSession, data: DriverAssignmentCre
     return await get_assignment_with_details_v2(session=session, assignment_id=assignment.id)
 
 async def get_driver_active_assignment(session: AsyncSession, driver_id: UUID) -> DriverAssignmentRead | None:
-    statement = select(DriverAssignment).where(
-        DriverAssignment.driver_id == driver_id,
-        DriverAssignment.status == DAStatus.ACCEPTED,
-    ).options(selectinload(DriverAssignment.order).selectinload(Order.items))
-    result = await session.exec(statement)
-    assignment = result.one_or_none()
-    return assignment
+    return await repo.get_active_assignment_by_driver(driver_id, session)
 
 
 
