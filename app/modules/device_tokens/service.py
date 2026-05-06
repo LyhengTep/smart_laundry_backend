@@ -1,11 +1,11 @@
 from uuid import UUID
 
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.exceptions.http import create_400, create_404
 from app.modules.device_tokens.models import DeviceToken
 from app.modules.device_tokens.schema import DeviceTokenRead, DeviceTokenRegister
+from app.modules.device_tokens import repository as repo
 from app.shared.common import utc_now
 
 
@@ -20,61 +20,36 @@ async def list_device_tokens(
     user_id: UUID | None = None,
     driver_id: UUID | None = None,
 ) -> list[DeviceTokenRead]:
-    statement = select(DeviceToken).order_by(DeviceToken.updated_at.desc())
-    if user_id is not None:
-        statement = statement.where(DeviceToken.user_id == user_id)
-    if driver_id is not None:
-        statement = statement.where(DeviceToken.driver_id == driver_id)
-
-    result = await session.exec(statement)
-    return result.all()
+    return await repo.list_by_filters(session, user_id=user_id, driver_id=driver_id)
 
 
 async def get_device_token(device_token_id: int, session: AsyncSession) -> DeviceTokenRead:
-    device_token = await session.get(DeviceToken, device_token_id)
-    if device_token is None:
+    token = await repo.get_by_id(device_token_id, session)
+    if token is None:
         raise create_404("Device token not found")
-    return device_token
+    return token
 
 
 async def register_device_token(data: DeviceTokenRegister, session: AsyncSession) -> DeviceTokenRead:
     _validate_device_token_target(data)
-
-    statement = select(DeviceToken).where(DeviceToken.token == data.token)
-    result = await session.exec(statement)
-    device_token = result.one_or_none()
-
-    if device_token is None:
-        device_token = DeviceToken(**data.model_dump())
+    token = await repo.get_by_token(data.token, session)
+    if token is None:
+        token = DeviceToken(**data.model_dump())
     else:
-        device_token.user_id = data.user_id
-        device_token.driver_id = data.driver_id
-        device_token.device_type = data.device_type
-        device_token.updated_at = utc_now()
-
-    session.add(device_token)
-    await session.commit()
-    await session.refresh(device_token)
-    return device_token
+        token.user_id = data.user_id
+        token.driver_id = data.driver_id
+        token.device_type = data.device_type
+        token.updated_at = utc_now()
+    return await repo.save(token, session)
 
 
 async def delete_device_token(device_token_id: int, session: AsyncSession) -> bool:
-    device_token = await session.get(DeviceToken, device_token_id)
-    if device_token is None:
+    token = await repo.get_by_id(device_token_id, session)
+    if token is None:
         raise create_404("Device token not found")
-
-    await session.delete(device_token)
-    await session.commit()
+    await repo.delete(token, session)
     return True
 
 
 async def delete_device_tokens_by_user_id(user_id: UUID, session: AsyncSession) -> int:
-    statement = select(DeviceToken).where(DeviceToken.user_id == user_id)
-    result = await session.exec(statement)
-    device_tokens = result.all()
-
-    for device_token in device_tokens:
-        await session.delete(device_token)
-
-    await session.commit()
-    return len(device_tokens)
+    return await repo.delete_by_user_id(user_id, session)
