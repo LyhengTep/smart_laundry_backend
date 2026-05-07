@@ -24,12 +24,15 @@ from app.modules.users.schema import UserRead, UserWrite
 
 router = APIRouter(prefix="/drivers", tags=["drivers"])
 
-@router.get("/",response_model=Page[DriverRead])
-async def list_drivers(page: int =Query(1,ge=1),size: int=Query(10,ge=1,le=100),
-                       status: Optional[UserStatus]=Query(None),
-                       session: AsyncSession = Depends(get_session))->list[DriverRead]:
-
-    return await svc.list_drivers(session,page,size,status)
+@router.get("/", response_model=Page[DriverRead])
+async def list_drivers(
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    status: Optional[UserStatus] = Query(None),
+    user_name: Optional[str] = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> Page[DriverRead]:
+    return await svc.list_drivers(session, page, size, status=status, user_name=user_name)
 
 
 @router.get("/assignments/", response_model=Page[DriverAssignmentRead])

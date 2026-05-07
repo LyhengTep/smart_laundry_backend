@@ -53,6 +53,7 @@ async def list_paginated(
     session: AsyncSession,
     *,
     status: UserStatus | None = None,
+    user_name: str | None = None,
     page: int = 1,
     size: int = 10,
 ) -> Page[Driver]:
@@ -69,6 +70,9 @@ async def list_paginated(
     if status is not None:
         statement = statement.where(User.status == status)
         count_statement = count_statement.where(User.status == status)
+    if user_name is not None:
+        statement = statement.where(User.user_name.ilike(f"%{user_name}%"))
+        count_statement = count_statement.where(User.user_name.ilike(f"%{user_name}%"))
 
     total = (await session.exec(count_statement)).one()
     drivers = (await session.exec(statement)).all()

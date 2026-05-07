@@ -36,8 +36,14 @@ from app.shared.common import get_assignment_room, utc_now
 logger = logging.getLogger(__name__)
 
 
-async def list_drivers(session: AsyncSession, page: int, size: int, status: UserStatus) -> Page[DriverRead]:
-    return await repo.list_paginated(session, status=status, page=page, size=size)
+async def list_drivers(
+    session: AsyncSession,
+    page: int,
+    size: int,
+    status: UserStatus | None = None,
+    user_name: str | None = None,
+) -> Page[DriverRead]:
+    return await repo.list_paginated(session, status=status, user_name=user_name, page=page, size=size)
 
 
 async def list_one_driver(session: AsyncSession, driver_id: str) -> DriverRead:
