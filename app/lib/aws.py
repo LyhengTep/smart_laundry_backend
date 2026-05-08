@@ -30,7 +30,8 @@ def get_boto3_session()->boto3.session.Session:
 
 def get_s3_client():
     session = get_boto3_session()
-    return session.client("s3", endpoint_url=AWS_S3_ENDPOINT_URL)
+    print(f"Creating S3 client with endpoint: {AWS_S3_ENDPOINT_URL}")
+    return session.client("s3")
 
 
 def get_sqs_client()->SQSClient:
@@ -91,7 +92,7 @@ def upload_bytes_to_s3(
     key = build_s3_key(filename=filename, folder=folder)
     client = get_s3_client()
     bucket_name = bucket or get_s3_bucket_name()
-
+    print(f"Uploading file to S3: bucket={bucket_name}, key={key}, content_type={content_type}")
     extra_args: dict[str, str] = {}
     if content_type:
         extra_args["ContentType"] = content_type

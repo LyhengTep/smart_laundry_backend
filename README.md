@@ -77,7 +77,6 @@ Example:
 
 ```env
 DATABASE_URL=postgresql://app_user:password@localhost:5432/smart_laundry
-SECRET_KEY=your_secret_key
 AWS_ACCESS_KEY_ID=your_aws_access_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret
 AWS_REGION=ap-southeast-1
@@ -254,6 +253,59 @@ app/
 ├── tests/                  # Unit and integration tests
 └── __init__.py             # Python package initialization
 ```
+---
+
+# Running Locally with docker-compose.yaml
+
+Use `docker-compose.yaml` to run the full stack (Postgres + backend + web) locally without Traefik or LocalStack.
+
+```bash
+docker compose -f docker-compose.yaml up
+```
+
+## Prerequisites
+
+### 1. Web image must exist locally
+
+The compose file uses `lyheng/smart-laundry-web:local`. Before starting, verify the image exists:
+
+```bash
+docker images | grep smart-laundry-web
+```
+
+If the image is **not found**, build it from the frontend project:
+
+1. Navigate to the `smart-laundry-web` project directory.
+2. Ensure `.env.local` exists and contains valid environment values.
+3. Run the build command:
+
+```bash
+make build-local
+```
+
+This produces the `lyheng/smart-laundry-web:local` image that docker-compose.yaml expects.
+
+### 2. Firebase credentials
+
+Place `firebaseServiceAccount.json` in the root of this project before starting. It is mounted into the backend container at `/app/msg/firebaseServiceAccount.json`.
+
+### 3. Environment file
+
+Create a `.env.docker` file in the project root with all required variables (Postgres, backend, and web). See `.env.example` for the list of keys.
+
+---
+
+## Seed / Test Data (`init/` folder)
+
+The `init/` directory contains SQL seed scripts for local testing. Postgres automatically executes all `.sql` files in this folder when the container starts **for the first time on a fresh volume** (i.e., no existing data).
+
+> If Postgres already has data, the init scripts will **not** run again. To reload seed data, remove the volume first:
+>
+> ```bash
+> docker compose -f docker-compose.yaml down -v
+> docker compose -f docker-compose.yaml up
+> ```
+
 ---
 
 # Notes

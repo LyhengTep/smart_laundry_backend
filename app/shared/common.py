@@ -32,7 +32,8 @@ def get_notification_template(status: "OrderStatus",order_no:str):
         return f"Your order no {order_no} was cancelled"
     if status==OrderStatus.DELIVERED_TO_SHOP:
         return f"Your order no {order_no} was delivered to shop successfully"
-    
+    if status==OrderStatus.DELIVERED:
+        return f"Your order no {order_no} has been delivered. Thank you for using our service!"
 
     return "Uknown notification"
 
@@ -45,7 +46,8 @@ def get_notification_title(status: "OrderStatus"):
         return "Order Cancelled"
     if status==OrderStatus.DELIVERED_TO_SHOP:
         return f"Laundry Received by Shop"
-    
+    if status==OrderStatus.DELIVERED:
+        return "Order Delivered"
 
     return "Uknown Title"
 

@@ -19,7 +19,7 @@ AWS_SQS_ENDPOINT_URL = os.getenv("AWS_SQS_ENDPOINT_URL")
 AWS_SQS_QUEUE_URL = os.getenv("AWS_SQS_QUEUE_URL")
 
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID")
-FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH")
+FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH") or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "firebaseServiceAccount.json")
 
 TOPIC_PICKUP_ASSIGNMENT = os.getenv("TOPIC_PICKUP_ASSIGNMENT")
 

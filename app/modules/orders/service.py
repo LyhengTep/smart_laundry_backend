@@ -288,7 +288,7 @@ async def create_order(session: AsyncSession, data: OrderCreate) -> OrderRead:
 
 async def notification_processor(order: Order, current_user_id: UUID, session: AsyncSession):
     try:
-        customer_notification_types = [OrderStatus.CANCELLED, OrderStatus.DELIVERED_TO_SHOP]
+        customer_notification_types = [OrderStatus.CANCELLED, OrderStatus.DELIVERED_TO_SHOP, OrderStatus.DELIVERED]
         if order.status not in customer_notification_types:
             return
 

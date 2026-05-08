@@ -93,7 +93,7 @@ async def signup(data: SignupRequest, session: AsyncSession):
          phone=data.phone,
          password_hash=hash_password(data.password),
          role=data.role,
-         status=UserStatus.INACTIVE,
+         status=UserStatus.ACTIVE if data.role == RoleName.CUSTOMER else UserStatus.INACTIVE,
       )
       session.add(user)
       await session.commit()
