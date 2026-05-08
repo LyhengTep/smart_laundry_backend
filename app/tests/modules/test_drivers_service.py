@@ -194,12 +194,16 @@ def test_update_assignment_status_rejects_missing_assignment() -> None:
 
 def test_resolve_assignment_order_status_for_picked_up() -> None:
     assert (
-        driver_service.resolve_assignment_order_status(OrderStatus.PICKUP_ASSIGNED, DAStatus.PICKED_UP)
+        driver_service.resolve_assignment_order_status(OrderStatus.OUT_FOR_PICKUP, DAStatus.PICKED_UP)
         == OrderStatus.PICKED_UP
     )
     assert (
         driver_service.resolve_assignment_order_status(OrderStatus.DELIVERY_ASSIGNED, DAStatus.PICKED_UP)
         == OrderStatus.OUT_FOR_DELIVERY
+    )
+    assert (
+        driver_service.resolve_assignment_order_status(OrderStatus.OUT_FOR_DELIVERY, DAStatus.PICKED_UP)
+        == OrderStatus.PICKED_UP_DELIVERY
     )
 
 
@@ -210,6 +214,10 @@ def test_resolve_assignment_order_status_for_delivered() -> None:
     )
     assert (
         driver_service.resolve_assignment_order_status(OrderStatus.OUT_FOR_DELIVERY, DAStatus.DELIVERED)
+        == OrderStatus.DELIVERED
+    )
+    assert (
+        driver_service.resolve_assignment_order_status(OrderStatus.PICKED_UP_DELIVERY, DAStatus.DELIVERED)
         == OrderStatus.DELIVERED
     )
 
