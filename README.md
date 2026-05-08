@@ -261,9 +261,25 @@ app/
 * Ensure Docker is running before executing Docker-related commands.
 * Do not commit `.env` files or secret credentials to Git.
 * Keep `firebaseServiceAccount.json` excluded using `.gitignore`.
+* `firebaseServiceAccount.json` must be placed in the **root of the project** before running `docker compose up`. It is mounted into the backend container at `/app/msg/firebaseServiceAccount.json`. Without this file, the backend will fail to start.
 
 ---
 
-# Author
+docker exec -t cc16b0454a58 pg_dump \
+  -U app_user \
+  -d smart_laundry \
+  -C \
+  --exclude-table=alembic_version \
+  --exclude-table=device_tokens \
+  --exclude-table=driver_assignment_histories \
+  --exclude-table=driver_assignments \
+  --exclude-table=notifications \
+  --exclude-table=order_items \
+  --exclude-table=orders \
+  --exclude-table=payments \
+  --exclude-table=shop_reviews \
+  --exclude-table=used_verbs \
+  > backup.sql
 
-Smart Laundry Backend API
+
+

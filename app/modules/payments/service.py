@@ -99,17 +99,17 @@ async def create_delivery_payment(
     status: PaymentStatus = PaymentStatus.PENDING,
 ) -> Payment:
     """Create a delivery/washing-fee payment; inherits method and currency from the order's first payment."""
-    existing = (await session.exec(select(Payment).where(Payment.order_id == order_id))).first()
-    method = existing.method if existing else PaymentMethod.CASH
-    currency = existing.currency if existing else CurrencyType.USD
+    existing = (await session.exec(select(Payment).where(Payment.order_id == order_id,Payment.type == payment_type))).first()
 
+    if existing:
+            return existing
     payment = Payment(
         order_id=order_id,
         assignment_id=assignment_id,
-        method=method,
+        method=PaymentMethod.CASH,
         status=status,
         amount=amount,
-        currency=currency,
+        currency=CurrencyType.USD,
         paid_by=PaidByType.CUSTOMER,
         paid_at=utc_now(),
         type=payment_type,

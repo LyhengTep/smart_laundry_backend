@@ -39,8 +39,8 @@ from app.shared.common import get_notification_template, get_notification_title,
 logger=logging.getLogger(__name__)
 ORDER_STATUS_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
     OrderStatus.PENDING: {OrderStatus.CONFIRMED, OrderStatus.CANCELLED},
-    OrderStatus.CONFIRMED: {OrderStatus.PICKUP_ASSIGNED, OrderStatus.CANCELLED},
-    OrderStatus.PICKUP_ASSIGNED: {OrderStatus.PICKED_UP, OrderStatus.CANCELLED},
+    OrderStatus.CONFIRMED: {OrderStatus.PICKUP_ASSIGNED,OrderStatus.OUT_FOR_PICKUP, OrderStatus.CANCELLED},
+    OrderStatus.PICKUP_ASSIGNED: {OrderStatus.PICKED_UP,OrderStatus.OUT_FOR_PICKUP, OrderStatus.CANCELLED},
     OrderStatus.OUT_FOR_PICKUP: {OrderStatus.PICKED_UP, OrderStatus.CANCELLED},
     OrderStatus.PICKED_UP: {OrderStatus.DELIVERED_TO_SHOP},
     OrderStatus.DELIVERED_TO_SHOP: {OrderStatus.PROCESSING},

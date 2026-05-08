@@ -12,6 +12,7 @@ from app.lib.datetime import calulate_remaining_time
 from app.modules.businesses.models import LaundryBusiness
 from app.modules.device_tokens.models import DeviceToken
 from app.modules.drivers.models import DARole, DAStatus, Driver, DriverAssignment, DriverAssignmentHistory, DriverStatus
+from app.modules.notifications.models import Notification, NotificationChannel, NotificationStatus, NotificationType
 from app.modules.drivers.schema import (
     ActiveAssignmentResponse,
     DriverAssignmentCreate,
@@ -224,13 +225,14 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
         raise create_400("This assignment does not belong to the driver")
     order= await get_order_by_id(order_id=assignment.order_id,session=session)
 
-    order_status=OrderStatus.PICKUP_ASSIGNED
+    order_status=OrderStatus.OUT_FOR_PICKUP
 
     if order.status==OrderStatus.READY_FOR_DELIVERY:
         order_status=OrderStatus.DELIVERY_ASSIGNED
 
     if order.status==OrderStatus.DELIVERY_ASSIGNED:
         order_status=OrderStatus.OUT_FOR_DELIVERY
+
 
     order = await update_order_status(session=session, order_id=assignment.order_id,data=OrderStatusUpdate(status=order_status))
     
@@ -243,7 +245,7 @@ async def accept_assignment_api(session: AsyncSession, assignment_id: UUID,user_
         cost=order.delivery_fee,
     )
 
-    if order_status == OrderStatus.PICKUP_ASSIGNED:
+    if order_status == OrderStatus.PICKUP_ASSIGNED or order_status == OrderStatus.OUT_FOR_PICKUP:
         # Pickup: payment amount is pickup fee only
         payment = await get_pending_payment_by_order_id(assignment.order_id, session)
         if payment is not None:
@@ -297,7 +299,7 @@ async def pickup_assignment_api(
 def resolve_assignment_order_status(current_status: OrderStatus, assignment_status: DAStatus) -> OrderStatus:
     """Map (order_status, assignment_status) → next order status; raises 400 for invalid combinations."""
     if assignment_status == DAStatus.PICKED_UP:
-        if current_status == OrderStatus.PICKUP_ASSIGNED:
+        if current_status == OrderStatus.OUT_FOR_PICKUP:
             return OrderStatus.PICKED_UP
         if current_status == OrderStatus.DELIVERY_ASSIGNED:
             return OrderStatus.OUT_FOR_DELIVERY
@@ -490,6 +492,7 @@ def _fallback_order_status(role: DARole) -> OrderStatus:
 
 
 async def _revert_order_to_fallback(session: AsyncSession, order_id: UUID, role: DARole) -> None:
+    logger.info(f"Reverting order {order_id} to fallback status for role {role} due to no available drivers")
     order_statement = select(Order).where(Order.id == order_id)
     order_res = await session.exec(order_statement)
     order = order_res.one_or_none()
@@ -506,7 +509,7 @@ async def _revert_order_to_fallback(session: AsyncSession, order_id: UUID, role:
 # Auto assign to two types of delivery: PICKUP and DELIVERY
 async def auto_assign_driver(session: AsyncSession, type: DARole,order_id:UUID) -> None:
     """Pick the first ONLINE driver and assign them to the order; reverts order to fallback status if no drivers are available."""
-
+    logger.info(f"Auto-assigning driver for order {order_id} and role {type}")
     order_statement= select(Order).where(Order.id==order_id);
     order_res = await session.exec(order_statement);
     order= order_res.one_or_none();
@@ -583,9 +586,25 @@ async def set_timeout_assign_driver(session: AsyncSession,assignment_id: UUID):
     device_res = await session.exec(device_statement)
     device_tokens= device_res.fetchall()
 
+    notification_title = "New Assignment"
+    notification_body = f"You have a new {assignment.role.value} assignment"
+
     logger.info(f"Sending push notification to driver {drivers[0].id} with device tokens: {device_tokens}")
     for device in device_tokens:
-        send_firebase_message(token=device.token,title="New Assignment",body=f"You have a new {assignment.role.value} assignment",data={"assignment_id": str(assignment_id)})
+        send_firebase_message(token=device.token, title=notification_title, body=notification_body, data={"assignment_id": str(assignment_id)})
+
+    notification = Notification(
+        user_id=drivers[0].user_id,
+        type=NotificationType.SYSTEM,
+        title=notification_title,
+        message=notification_body,
+        reference_id=assignment_id,
+        reference_type="driver_assignment",
+        channel=NotificationChannel.PUSH,
+        status=NotificationStatus.SENT,
+    )
+    session.add(notification)
+    await session.commit()
 
     # await 
     await asyncio.create_task(assignment_timeout(assignment_id))
