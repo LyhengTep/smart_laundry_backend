@@ -92,3 +92,4 @@ app/uploads
 AGENTS*
 CLAUDE*
 firebaseServiceAccount.json
+*.tgz

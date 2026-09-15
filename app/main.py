@@ -83,3 +83,7 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/")
 def read_root() -> dict[str, str]:
     return {"Hello": "World"}
+
+@app.get("/ready")
+async def readiness():
+    return {"status": "ready"}

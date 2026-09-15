@@ -1,6 +1,6 @@
 apiVersion: v2
-name: smart_laundry_backend_helm
-description: A Helm chart for Kubernetes
+name: smart-laundry-backend-helm
+description: A Helm chart for smart laundry backend 
 
 # A chart can be either an 'application' or a 'library' chart.
 #
